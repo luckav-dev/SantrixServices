@@ -992,13 +992,14 @@ function CustomerLoginPanel({
     getPrimaryCustomerAuthProvider(customerLogin) ??
     buildCustomerProviderFallback('fivem');
   const providerList = enabledProviders.length ? enabledProviders : [primaryProvider];
+  const loginBrandLabel = customerLogin.providerLabel || primaryProvider.label;
 
   return (
     <article className={`checkout-auth${standalone ? ' checkout-auth--standalone' : ''}`}>
       <div className="checkout-auth__brand">
         <img src={customerLogin.brandLogoSrc} alt={customerLogin.brandLogoAlt} />
         <span>&times;</span>
-        <strong>{primaryProvider.label}</strong>
+        <strong>{loginBrandLabel}</strong>
       </div>
 
       <div className="checkout-auth__content">
@@ -1020,7 +1021,7 @@ function CustomerLoginPanel({
                 disabled={isBusy}
               >
                 <LoginProviderIcon provider={provider} />
-                {isCurrentBusy ? 'Connecting...' : provider.buttonLabel}
+                {isCurrentBusy ? 'Connecting...' : provider.buttonLabel || customerLogin.buttonLabel}
               </button>
             );
           })}

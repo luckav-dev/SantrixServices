@@ -85,6 +85,14 @@ const adminPages = [
     description: 'Controla qué productos salen por Tebex o PayPal y qué compras exigen identidad validada.',
   },
   {
+    slug: 'auth',
+    label: 'Auth',
+    icon: 'fa-solid fa-right-to-bracket',
+    eyebrow: 'Acceso',
+    title: 'Login del cliente y proveedores',
+    description: 'Configura la pantalla de acceso, el proveedor principal y qué login reales están activos.',
+  },
+  {
     slug: 'customers',
     label: 'Customers',
     icon: 'fa-solid fa-users',
@@ -313,14 +321,21 @@ function AdminToggle({
   label,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
-    <label className="admin-toggle">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.currentTarget.checked)} />
+    <label className={`admin-toggle ${disabled ? 'is-disabled' : ''}`}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.currentTarget.checked)}
+      />
       <span>{label}</span>
     </label>
   );
@@ -869,13 +884,21 @@ export function AdminDashboardPage() {
     (selectedOrder && customers.find((customer) => customer.userId === selectedOrder.userId)) ??
     null;
   const totalRevenueEur = orders.reduce((sum, order) => sum + order.totalEur, 0);
-  const canManageAdmins = adminSession.role === 'owner';
+  const canManageSensitiveSettings = adminSession.role === 'owner';
+  const canManageAdmins = canManageSensitiveSettings;
   const paymentSummary = {
     tebex: products.filter((product) => product.checkoutProvider === 'tebex').length,
     paypal: products.filter((product) => product.checkoutProvider === 'paypal').length,
     external: products.filter((product) => product.checkoutProvider === 'external').length,
     requiresIdentity: products.filter((product) => product.requiresIdentity).length,
   };
+  const enabledCustomerProviders = siteConfig.customerLogin.providers.filter((provider) => provider.enabled);
+  const primaryCustomerProvider =
+    siteConfig.customerLogin.providers.find(
+      (provider) => provider.id === siteConfig.customerLogin.primaryProviderId,
+    ) ??
+    siteConfig.customerLogin.providers[0] ??
+    null;
 
   useEffect(() => {
     if (!filteredCustomers.length) {
@@ -2056,10 +2079,21 @@ export function AdminDashboardPage() {
 
                   {selectedProductSlug ? (
                     <>
+                      {!canManageSensitiveSettings ? (
+                        <div className="admin-inline-tip">
+                          <i className="fa-solid fa-lock" />
+                          <p>
+                            Esta página es de <strong>solo lectura</strong> para roles que no son
+                            <strong> owner</strong>.
+                          </p>
+                        </div>
+                      ) : null}
+
                       <div className="admin-grid admin-grid--2">
                         <AdminField label="Proveedor checkout">
                           <select
                             value={productDraft.checkoutProvider}
+                            disabled={!canManageSensitiveSettings}
                             onChange={(event) =>
                               setProductDraft((current) => ({
                                 ...current,
@@ -2076,6 +2110,7 @@ export function AdminDashboardPage() {
                         <AdminToggle
                           label="Requiere identidad validada"
                           checked={productDraft.requiresIdentity}
+                          disabled={!canManageSensitiveSettings}
                           onChange={(checked) =>
                             setProductDraft((current) => ({
                               ...current,
@@ -2087,6 +2122,7 @@ export function AdminDashboardPage() {
                         <AdminField label="Tebex package id" hint="Si está vacío, usa open/escrow version id como fallback">
                           <input
                             value={productDraft.tebexPackageId}
+                            disabled={!canManageSensitiveSettings}
                             onChange={(event) =>
                               setProductDraft((current) => ({
                                 ...current,
@@ -2099,6 +2135,7 @@ export function AdminDashboardPage() {
                         <AdminField label="Tebex server id" hint="Opcional, útil si el package se liga a un server">
                           <input
                             value={productDraft.tebexServerId}
+                            disabled={!canManageSensitiveSettings}
                             onChange={(event) =>
                               setProductDraft((current) => ({
                                 ...current,
@@ -2111,6 +2148,7 @@ export function AdminDashboardPage() {
                         <AdminField label="External checkout URL" hint="Solo para productos external">
                           <input
                             value={productDraft.externalCheckoutUrl}
+                            disabled={!canManageSensitiveSettings}
                             onChange={(event) =>
                               setProductDraft((current) => ({
                                 ...current,
@@ -2136,9 +2174,11 @@ export function AdminDashboardPage() {
                       </div>
 
                       <div className="admin-row admin-row--wrap">
-                        <button className="admin-button admin-button--primary" type="button" onClick={saveProduct}>
-                          Guardar ajustes de pago
-                        </button>
+                        {canManageSensitiveSettings ? (
+                          <button className="admin-button admin-button--primary" type="button" onClick={saveProduct}>
+                            Guardar ajustes de pago
+                          </button>
+                        ) : null}
                         <button
                           className="admin-button admin-button--ghost"
                           type="button"
@@ -2156,6 +2196,400 @@ export function AdminDashboardPage() {
                     </div>
                   )}
                 </div>
+              </div>
+            </section>
+
+            <section className="admin-section" id="auth">
+              <div className="admin-section__head">
+                <p className="admin-section__eyebrow">Auth</p>
+                <h2>Login del cliente y proveedores</h2>
+              </div>
+
+              <div className="admin-grid admin-grid--stats">
+                <div className="admin-card admin-stat-card">
+                  <span className="admin-stat-card__label">Enabled</span>
+                  <strong>{enabledCustomerProviders.length}</strong>
+                  <p>Proveedores visibles ahora mismo en la página de login.</p>
+                </div>
+                <div className="admin-card admin-stat-card">
+                  <span className="admin-stat-card__label">Primary</span>
+                  <strong>{primaryCustomerProvider?.label ?? 'Sin definir'}</strong>
+                  <p>Proveedor principal mostrado en header y login.</p>
+                </div>
+                <div className="admin-card admin-stat-card">
+                  <span className="admin-stat-card__label">Header</span>
+                  <strong>{siteConfig.header.guestLoginLabel}</strong>
+                  <p>Texto del CTA de acceso en la cabecera pública.</p>
+                </div>
+                <div className="admin-card admin-stat-card">
+                  <span className="admin-stat-card__label">Session</span>
+                  <strong>{siteConfig.customerLogin.headerLoggedInTextPrefix || 'Sin prefijo'}</strong>
+                  <p>Prefijo visible cuando el cliente ya está conectado.</p>
+                </div>
+              </div>
+
+              <div className="admin-grid admin-grid--products">
+                <div className="admin-card">
+                  <div className="admin-card__title-row">
+                    <h3>Página de login</h3>
+                    <span className="admin-pill">
+                      {canManageSensitiveSettings ? siteConfig.customerLogin.primaryProviderId : 'Read only'}
+                    </span>
+                  </div>
+
+                  {!canManageSensitiveSettings ? (
+                    <div className="admin-inline-tip">
+                      <i className="fa-solid fa-lock" />
+                      <p>
+                        Solo el <strong>owner</strong> puede cambiar proveedores de login y branding de acceso.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div className="admin-grid admin-grid--2">
+                    <AdminField label="Título página login">
+                      <input
+                        value={siteConfig.customerLogin.routeTitle}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              routeTitle: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Subtítulo página login">
+                      <input
+                        value={siteConfig.customerLogin.routeSubtitle}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              routeSubtitle: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Texto ayuda login">
+                      <input
+                        value={siteConfig.customerLogin.helperText}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              helperText: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Texto fallback de botón">
+                      <input
+                        value={siteConfig.customerLogin.buttonLabel}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              buttonLabel: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Proveedor principal">
+                      <select
+                        value={siteConfig.customerLogin.primaryProviderId}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              primaryProviderId:
+                                event.currentTarget.value as typeof current.customerLogin.primaryProviderId,
+                            },
+                          }))
+                        }
+                      >
+                        {siteConfig.customerLogin.providers.map((provider) => (
+                          <option key={provider.id} value={provider.id}>
+                            {provider.label}
+                          </option>
+                        ))}
+                      </select>
+                    </AdminField>
+
+                    <AdminField label="Prefijo usuario conectado" hint="Ejemplo: Connected as">
+                      <input
+                        value={siteConfig.customerLogin.headerLoggedInTextPrefix}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              headerLoggedInTextPrefix: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+                  </div>
+                </div>
+
+                <div className="admin-card">
+                  <div className="admin-card__title-row">
+                    <h3>Branding del acceso</h3>
+                    <span className="admin-pill">{enabledCustomerProviders.length} activos</span>
+                  </div>
+
+                  <div className="admin-grid admin-grid--2">
+                    <AdminField label="Logo de la página login">
+                      <input
+                        value={siteConfig.customerLogin.brandLogoSrc}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              brandLogoSrc: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Alt del logo login">
+                      <input
+                        value={siteConfig.customerLogin.brandLogoAlt}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              brandLogoAlt: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Label partner / proveedor">
+                      <input
+                        value={siteConfig.customerLogin.providerLabel}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              providerLabel: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Logo fallback proveedor">
+                      <input
+                        value={siteConfig.customerLogin.providerLogoSrc}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              providerLogoSrc: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Alt fallback proveedor">
+                      <input
+                        value={siteConfig.customerLogin.providerLogoAlt}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              providerLogoAlt: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+
+                    <AdminField label="Texto login header público">
+                      <input
+                        value={siteConfig.header.guestLoginLabel}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            header: {
+                              ...current.header,
+                              guestLoginLabel: event.currentTarget.value,
+                            },
+                          }))
+                        }
+                      />
+                    </AdminField>
+                  </div>
+
+                  <div className="admin-inline-tip">
+                    <i className="fa-solid fa-circle-info" />
+                    <p>
+                      Google y Discord dependen de <strong>Supabase Auth</strong>. FiveM depende del flujo real de
+                      <strong> Tebex Headless</strong> y de las edge functions desplegadas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-group-card admin-grid admin-grid--2">
+                {siteConfig.customerLogin.providers.map((provider, index) => (
+                  <div className="admin-group-card" key={provider.id}>
+                    <div className="admin-card__title-row">
+                      <h3>{provider.label}</h3>
+                      <span className="admin-pill">{provider.id}</span>
+                    </div>
+
+                    <div className="admin-stack">
+                      <AdminToggle
+                        label={`Activar ${provider.label}`}
+                        checked={provider.enabled}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(checked) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            customerLogin: {
+                              ...current.customerLogin,
+                              providers: updateArrayItem(current.customerLogin.providers, index, {
+                                ...current.customerLogin.providers[index],
+                                enabled: checked,
+                              }),
+                            },
+                          }))
+                        }
+                      />
+
+                      <AdminField label="Nombre visible">
+                        <input
+                          value={provider.label}
+                          disabled={!canManageSensitiveSettings}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              customerLogin: {
+                                ...current.customerLogin,
+                                providers: updateArrayItem(current.customerLogin.providers, index, {
+                                  ...current.customerLogin.providers[index],
+                                  label: event.currentTarget.value,
+                                }),
+                              },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Texto botón">
+                        <input
+                          value={provider.buttonLabel}
+                          disabled={!canManageSensitiveSettings}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              customerLogin: {
+                                ...current.customerLogin,
+                                providers: updateArrayItem(current.customerLogin.providers, index, {
+                                  ...current.customerLogin.providers[index],
+                                  buttonLabel: event.currentTarget.value,
+                                }),
+                              },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Logo / imagen">
+                        <input
+                          value={provider.logoSrc ?? ''}
+                          disabled={!canManageSensitiveSettings}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              customerLogin: {
+                                ...current.customerLogin,
+                                providers: updateArrayItem(current.customerLogin.providers, index, {
+                                  ...current.customerLogin.providers[index],
+                                  logoSrc: event.currentTarget.value || undefined,
+                                }),
+                              },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Alt del logo">
+                        <input
+                          value={provider.logoAlt ?? ''}
+                          disabled={!canManageSensitiveSettings}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              customerLogin: {
+                                ...current.customerLogin,
+                                providers: updateArrayItem(current.customerLogin.providers, index, {
+                                  ...current.customerLogin.providers[index],
+                                  logoAlt: event.currentTarget.value || undefined,
+                                }),
+                              },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Icon class FontAwesome">
+                        <input
+                          value={provider.iconClass ?? ''}
+                          disabled={!canManageSensitiveSettings}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              customerLogin: {
+                                ...current.customerLogin,
+                                providers: updateArrayItem(current.customerLogin.providers, index, {
+                                  ...current.customerLogin.providers[index],
+                                  iconClass: event.currentTarget.value || undefined,
+                                }),
+                              },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
 
@@ -2860,7 +3294,7 @@ export function AdminDashboardPage() {
             <section className="admin-section" id="content">
               <div className="admin-section__head">
                 <p className="admin-section__eyebrow">Contenido</p>
-                <h2>Términos, login y módulos visibles</h2>
+                <h2>Términos, textos y módulos visibles</h2>
               </div>
 
               <div className="admin-card admin-grid admin-grid--2">
@@ -2925,75 +3359,6 @@ export function AdminDashboardPage() {
                   }
                 />
 
-                <AdminField label="Título página login">
-                  <input
-                    value={siteConfig.customerLogin.routeTitle}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        customerLogin: { ...current.customerLogin, routeTitle: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Subtítulo página login">
-                  <input
-                    value={siteConfig.customerLogin.routeSubtitle}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        customerLogin: { ...current.customerLogin, routeSubtitle: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto botón login">
-                  <input
-                    value={siteConfig.customerLogin.buttonLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        customerLogin: { ...current.customerLogin, buttonLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-            <AdminField label="Texto ayuda login">
-              <input
-                value={siteConfig.customerLogin.helperText}
-                onChange={(event) =>
-                  updateSiteConfig((current) => ({
-                        ...current,
-                        customerLogin: { ...current.customerLogin, helperText: event.currentTarget.value },
-                      }))
-                }
-              />
-            </AdminField>
-
-            <AdminField label="Proveedor principal">
-              <select
-                value={siteConfig.customerLogin.primaryProviderId}
-                onChange={(event) =>
-                  updateSiteConfig((current) => ({
-                    ...current,
-                    customerLogin: {
-                      ...current.customerLogin,
-                      primaryProviderId: event.currentTarget.value as typeof current.customerLogin.primaryProviderId,
-                    },
-                  }))
-                }
-              >
-                {siteConfig.customerLogin.providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.label}
-                  </option>
-                ))}
-              </select>
-            </AdminField>
-
             <AdminField label="Título destacados home">
               <input
                 value={siteConfig.storeText.featuredProductsLabel}
@@ -3005,108 +3370,6 @@ export function AdminDashboardPage() {
                     }
               />
             </AdminField>
-
-            <div className="admin-group-card admin-grid admin-grid--2">
-              {siteConfig.customerLogin.providers.map((provider, index) => (
-                <div className="admin-group-card" key={provider.id}>
-                  <div className="admin-card__title-row">
-                    <h3>{provider.label}</h3>
-                    <span className="admin-pill">{provider.id}</span>
-                  </div>
-
-                  <div className="admin-stack">
-                    <AdminToggle
-                      label={`Activar ${provider.label}`}
-                      checked={provider.enabled}
-                      onChange={(checked) =>
-                        updateSiteConfig((current) => ({
-                          ...current,
-                          customerLogin: {
-                            ...current.customerLogin,
-                            providers: updateArrayItem(current.customerLogin.providers, index, {
-                              ...current.customerLogin.providers[index],
-                              enabled: checked,
-                            }),
-                          },
-                        }))
-                      }
-                    />
-
-                    <AdminField label="Nombre visible">
-                      <input
-                        value={provider.label}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providers: updateArrayItem(current.customerLogin.providers, index, {
-                                ...current.customerLogin.providers[index],
-                                label: event.currentTarget.value,
-                              }),
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Texto botón">
-                      <input
-                        value={provider.buttonLabel}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providers: updateArrayItem(current.customerLogin.providers, index, {
-                                ...current.customerLogin.providers[index],
-                                buttonLabel: event.currentTarget.value,
-                              }),
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Logo / imagen">
-                      <input
-                        value={provider.logoSrc ?? ''}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providers: updateArrayItem(current.customerLogin.providers, index, {
-                                ...current.customerLogin.providers[index],
-                                logoSrc: event.currentTarget.value || undefined,
-                              }),
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Icon class FontAwesome">
-                      <input
-                        value={provider.iconClass ?? ''}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providers: updateArrayItem(current.customerLogin.providers, index, {
-                                ...current.customerLogin.providers[index],
-                                iconClass: event.currentTarget.value || undefined,
-                              }),
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-                  </div>
-                </div>
-              ))}
-            </div>
 
                 <AdminField label="Texto Add to cart">
                   <input

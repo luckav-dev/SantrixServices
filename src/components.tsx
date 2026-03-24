@@ -267,6 +267,9 @@ function SiteHeader() {
     .map((category) => ({ label: category.label, href: getCategoryHref(category.id) }));
   const { brandAssets, customerLogin, header } = siteConfig;
   const primaryLoginProvider = getPrimaryCustomerAuthProvider(customerLogin);
+  const customerSessionLabel = user
+    ? [customerLogin.headerLoggedInTextPrefix.trim(), user.name].filter(Boolean).join(' ')
+    : '';
 
   useEffect(() => {
     document.body.classList.toggle('menu-open', isMenuOpen || isCartOpen);
@@ -405,7 +408,7 @@ function SiteHeader() {
                   type="button"
                   onClick={logout}
                 >
-                  {user.name}
+                  {customerSessionLabel}
                 </button>
               ) : (
                 <Link
@@ -572,7 +575,7 @@ function SiteHeader() {
               }}
             >
               <i className="fa-solid fa-right-from-bracket" />
-              <span>{user.name}</span>
+              <span>{customerSessionLabel}</span>
             </button>
           ) : (
             <Link className="mobile-panel__login-link" onClick={closeMobileMenu} to="/login">

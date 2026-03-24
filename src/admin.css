@@ -634,6 +634,7 @@
 .admin-panel[data-admin-page='categories']>#categories,
 .admin-panel[data-admin-page='products']>#products,
 .admin-panel[data-admin-page='payments']>#payments,
+.admin-panel[data-admin-page='auth']>#auth,
 .admin-panel[data-admin-page='customers']>#customers,
 .admin-panel[data-admin-page='orders']>#orders,
 .admin-panel[data-admin-page='admins']>#admins,
