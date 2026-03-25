@@ -150,7 +150,7 @@ function buildInitials(value: string) {
 }
 
 export function SiteShell() {
-  const { isStorefrontReady, isAssetsReady, setIsAssetsReady, siteConfig, storefrontSource, home } = useStore();
+  const { isStorefrontReady, isAssetsReady, setIsAssetsReady, siteConfig, storefrontSource } = useStore();
 
   useEffect(() => {
     if (isAssetsReady) {
@@ -159,7 +159,7 @@ export function SiteShell() {
 
     // Identify critical assets
     const criticalAssets: string[] = [];
-    if (siteConfig.brandLogo) criticalAssets.push(siteConfig.brandLogo);
+    if (siteConfig.brandAssets.headerLogoSrc) criticalAssets.push(siteConfig.brandAssets.headerLogoSrc);
 
     // Check if we have assets to wait for
     if (criticalAssets.length === 0) {
@@ -184,7 +184,7 @@ export function SiteShell() {
       img.onload = onAssetLoaded;
       img.onerror = onAssetLoaded; // Don't block forever if one fails
     });
-  }, [siteConfig.brandLogo, isAssetsReady, setIsAssetsReady]);
+  }, [siteConfig.brandAssets.headerLogoSrc, isAssetsReady, setIsAssetsReady]);
 
   const themeStyle = {
     '--accent': normalizeHexColor(siteConfig.theme?.primaryColor, '#ff334f'),

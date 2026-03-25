@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import type { SiteConfig } from './site-config';
 import type { HomeData } from './store';
 import { getEmbedMediaSrc, hasOptionalMedia } from './media';
