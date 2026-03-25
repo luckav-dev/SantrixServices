@@ -30,6 +30,7 @@ import { hasSupabaseSync } from './supabase';
 import {
   restoreRemoteAdminSession,
   signInAdminWithPassword,
+  signInAdminWithOAuth,
   signOutRemoteAdmin,
   subscribeToRemoteAdminSession,
   type RemoteAdminSession,
@@ -185,6 +186,8 @@ interface StoreContextValue {
   purchasedProductSlugs: string[];
   myReviews: StorefrontReview[];
   isStorefrontReady: boolean;
+  isAssetsReady: boolean;
+  setIsAssetsReady: (ready: boolean) => void;
   isCustomerAuthReady: boolean;
   storefrontSource: 'supabase' | 'local';
   updateSiteConfig: (next: Updater<SiteConfig>) => void;
@@ -231,6 +234,9 @@ interface StoreContextValue {
   loginAdmin: (
     username: string,
     password: string,
+  ) => Promise<{ ok: boolean; message?: string }>;
+  loginAdminWithOAuth: (
+    provider: 'google' | 'discord',
   ) => Promise<{ ok: boolean; message?: string }>;
   logoutAdmin: () => Promise<void>;
   getProduct: (slug: string) => Product | undefined;
@@ -554,6 +560,10 @@ function mergeStoredConfig(
   return {
     ...cloneData(defaultSiteConfig),
     ...stored,
+    theme: {
+      ...cloneData(defaultSiteConfig.theme),
+      ...stored.theme,
+    },
     brandAssets: {
       ...cloneData(defaultSiteConfig.brandAssets),
       ...stored.brandAssets,
@@ -568,6 +578,13 @@ function mergeStoredConfig(
     discountBanner: {
       ...cloneData(defaultSiteConfig.discountBanner),
       ...stored.discountBanner,
+    },
+    entryPopup: {
+      ...cloneData(defaultSiteConfig.entryPopup),
+      ...stored.entryPopup,
+      rows: stored.entryPopup?.rows?.length
+        ? stored.entryPopup.rows.map((row) => ({ ...row }))
+        : cloneData(defaultSiteConfig.entryPopup.rows),
     },
     homeHero: {
       ...cloneData(defaultSiteConfig.homeHero),
@@ -724,7 +741,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [recentReviews, setRecentReviews] = useState<StorefrontReview[]>([]);
   const [purchasedProductSlugs, setPurchasedProductSlugs] = useState<string[]>([]);
   const [myReviews, setMyReviews] = useState<StorefrontReview[]>([]);
-  const [isStorefrontReady, setIsStorefrontReady] = useState(() => !remoteSyncConfigured);
+  const [isStorefrontReady, setIsStorefrontReady] = useState(false);
+  const [isAssetsReady, setIsAssetsReady] = useState(false);
   const [isCustomerAuthReady, setIsCustomerAuthReady] = useState(() => !remoteSyncConfigured);
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() =>
     remoteSyncConfigured
@@ -1189,7 +1207,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     recentReviews: mergeReviewsById(recentReviews, myReviews),
     purchasedProductSlugs,
     myReviews,
-    isStorefrontReady,
+    isStorefrontReady: isStorefrontReady && isAssetsReady,
+    isAssetsReady,
+    setIsAssetsReady,
     isCustomerAuthReady,
     storefrontSource: remoteSyncConfigured ? 'supabase' : 'local',
     updateSiteConfig: (next) => {
@@ -1498,6 +1518,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ok: false,
         message: 'Usuario o contraseña incorrectos.',
       };
+    },
+    loginAdminWithOAuth: async (provider) => {
+      if (!remoteSyncConfigured) {
+        return {
+          ok: false,
+          message: 'El login social para administradores solo está disponible con Supabase activo.',
+        };
+      }
+
+      try {
+        const redirectTo = `${window.location.origin}/admin/dashboard/overview`;
+        await signInAdminWithOAuth(provider, redirectTo);
+        return { ok: true };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : `No se pudo iniciar el login con ${provider}.`,
+        };
+      }
     },
     logoutAdmin: async () => {
       if (remoteSyncConfigured) {

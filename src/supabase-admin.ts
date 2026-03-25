@@ -71,6 +71,24 @@ export async function signInAdminWithPassword(email: string, password: string) {
   return member;
 }
 
+export async function signInAdminWithOAuth(provider: 'google' | 'discord', redirectTo: string) {
+  const client = getAdminSupabaseClient();
+  if (!client) {
+    return;
+  }
+
+  const { error } = await client.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function restoreRemoteAdminSession() {
   const client = getAdminSupabaseClient();
   if (!client || !hasSupabaseSync()) {

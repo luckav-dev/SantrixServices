@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   ChevronDown,
   Clipboard,
@@ -18,6 +18,8 @@ import {
   useStore,
 } from './store';
 import { getPrimaryCustomerAuthProvider } from './customer-auth-utils';
+import { getEmbedMediaSrc, hasOptionalMedia, sanitizeOptionalMediaSrc } from './media';
+import { SafeImage } from './safe-image';
 
 const frameworkLogoMap: Record<string, string> = {
   ESX: '/media/esx-logo.png',
@@ -29,6 +31,27 @@ function getCountdownTarget(target: number) {
   return target > Date.now()
     ? target
     : Date.now() + 10 * 24 * 60 * 60 * 1000 + 11 * 60 * 60 * 1000;
+}
+
+function normalizeHexColor(value: string | undefined, fallback: string) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  const withHash = normalized.startsWith('#') ? normalized : `#${normalized}`;
+  return /^#([0-9a-f]{6})$/i.test(withHash) ? withHash : fallback;
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = normalizeHexColor(hex, '#ff334f').slice(1);
+  const value = Number.parseInt(normalized, 16);
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 function getTimeParts(target: number) {
@@ -72,7 +95,7 @@ function ProviderVisual({
   logoSrc?: string;
 }) {
   if (logoSrc) {
-    return <img src={logoSrc} alt={logoAlt ?? ''} className="w-4 h-4 object-contain white-icon" />;
+    return <SafeImage src={logoSrc} alt={logoAlt ?? ''} className="w-4 h-4 object-contain white-icon" />;
   }
 
   if (iconClass) {
@@ -127,37 +150,346 @@ function buildInitials(value: string) {
 }
 
 export function SiteShell() {
-  const { isStorefrontReady, siteConfig, storefrontSource } = useStore();
+  const { isStorefrontReady, isAssetsReady, setIsAssetsReady, siteConfig, storefrontSource, home } = useStore();
 
-  if (!isStorefrontReady) {
+  useEffect(() => {
+    if (isAssetsReady) {
+      return;
+    }
+
+    // Identify critical assets
+    const criticalAssets: string[] = [];
+    if (siteConfig.brandLogo) criticalAssets.push(siteConfig.brandLogo);
+
+    // Check if we have assets to wait for
+    if (criticalAssets.length === 0) {
+      setIsAssetsReady(true);
+      return;
+    }
+
+    let loadedCount = 0;
+    const totalToLoad = criticalAssets.length;
+
+    const onAssetLoaded = () => {
+      loadedCount++;
+      if (loadedCount >= totalToLoad) {
+        // Small delay for smooth transition
+        setTimeout(() => setIsAssetsReady(true), 800);
+      }
+    };
+
+    criticalAssets.forEach(src => {
+      const img = new Image();
+      img.src = src;
+      img.onload = onAssetLoaded;
+      img.onerror = onAssetLoaded; // Don't block forever if one fails
+    });
+  }, [siteConfig.brandLogo, isAssetsReady, setIsAssetsReady]);
+
+  const themeStyle = {
+    '--accent': normalizeHexColor(siteConfig.theme?.primaryColor, '#ff334f'),
+    '--accent-strong': normalizeHexColor(siteConfig.theme?.accentColor, '#ff4c63'),
+    '--accent-soft': hexToRgba(siteConfig.theme?.primaryColor ?? '#ff334f', 0.16),
+  } as CSSProperties;
+
+  // Critical: only show content when BOTH data (storefrontReady) and assets (assetsReady) are done
+  const showContent = isStorefrontReady && isAssetsReady;
+
+  if (!showContent) {
     return (
-      <div className="site-shell">
-        <main className="site-main">
-          <section className="container mx-auto min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center">
-            <div className="w-16 h-16 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center">
-              <i className="fa-solid fa-database text-[#FF3A52] text-xl" />
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-white font-semibold text-xl">Cargando tienda</p>
-              <p className="max-w-lg text-white/55 text-sm sm:text-base">
-                Sincronizando branding, categorías, productos y textos desde {storefrontSource === 'supabase' ? 'Supabase' : 'almacenamiento local'}.
-              </p>
-            </div>
-          </section>
-        </main>
+      <div className="site-shell min-h-screen flex items-center justify-center bg-[#0a0a0b] fixed inset-0 z-[9999]">
+        <div className="premium-loader">
+          <div className="premium-loader__spinner-container">
+            <div className="premium-loader__glow" />
+            <div className="premium-loader__spinner" />
+            <div className="premium-loader__spinner-inner" />
+            <i className="fa-solid fa-cube premium-loader__icon" />
+          </div>
+          <div className="premium-loader__content text-center">
+            <h2 className="premium-loader__title uppercase tracking-widest text-white/90">LOADING ...</h2>
+            <div className="h-[1px] w-12 bg-white/10 my-1" />
+            <p className="premium-loader__description">
+              {!isStorefrontReady
+                ? (storefrontSource === 'supabase' ? 'Sincronizando Pagina Web...' : 'Iniciando sistema local...')
+                : 'Preparando interfaz premium...'}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="site-shell">
+    <div className="site-shell" style={themeStyle}>
       {siteConfig.discountBanner.enabled ? <DiscountBanner /> : null}
       <SiteHeader />
+      <EntryOfferModal />
       <main className="site-main">
         <Outlet />
       </main>
       <SiteFooter />
       <CartDrawer />
+    </div>
+  );
+}
+
+function EntryOfferModal() {
+  const { siteConfig } = useStore();
+  const { entryPopup } = siteConfig;
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasVideoFailed, setHasVideoFailed] = useState(false);
+  const sessionKey = `0resmon.entry-popup.${siteConfig.brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  const popupRows = entryPopup.rows.filter((row) =>
+    [row.label, row.oldPrice, row.newPrice].some((value) => value.trim()),
+  );
+  const videoSrc =
+    entryPopup.mediaType === 'video' ? sanitizeOptionalMediaSrc(entryPopup.mediaSrc) : null;
+  const videoPosterSrc = sanitizeOptionalMediaSrc(entryPopup.mediaPosterSrc);
+  const embedSrc =
+    entryPopup.mediaType === 'embed' ? getEmbedMediaSrc(entryPopup.mediaSrc) : null;
+  const accentStyle = {
+    '--entry-popup-accent': entryPopup.accentColor || '#2ee96d',
+  } as CSSProperties;
+
+  useEffect(() => {
+    setHasVideoFailed(false);
+  }, [entryPopup.mediaSrc, entryPopup.mediaType]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!entryPopup.enabled) {
+      setIsOpen(false);
+      return;
+    }
+
+    const wasDismissed =
+      entryPopup.showOncePerSession &&
+      window.sessionStorage.getItem(sessionKey) === '1';
+
+    setIsOpen(!wasDismissed);
+  }, [entryPopup.enabled, entryPopup.showOncePerSession, sessionKey]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
+    document.body.classList.toggle('entry-popup-open', isOpen);
+
+    return () => {
+      document.body.classList.remove('entry-popup-open');
+    };
+  }, [isOpen]);
+
+  function handleClose() {
+    if (typeof window !== 'undefined' && entryPopup.showOncePerSession) {
+      window.sessionStorage.setItem(sessionKey, '1');
+    }
+
+    setIsOpen(false);
+  }
+
+  function renderMedia() {
+    let finalSrc = entryPopup.mediaSrc;
+    let isYouTube = false;
+
+    if (entryPopup.mediaType === 'video' && entryPopup.mediaSrc) {
+      const youtubeMatch = entryPopup.mediaSrc.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+      if (youtubeMatch) {
+        finalSrc = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&mute=1&loop=1&playlist=${youtubeMatch[1]}`;
+        isYouTube = true;
+      }
+    }
+
+    if (isYouTube || entryPopup.mediaType === 'embed') {
+      const embedUrl = isYouTube ? finalSrc : embedSrc;
+      if (!embedUrl) return null;
+      return (
+        <div className="entry-popup__media entry-popup__media--embed">
+          <iframe
+            className="entry-popup__embed"
+            src={embedUrl}
+            title={entryPopup.mediaAlt || entryPopup.title || 'Offer media'}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
+      );
+    }
+
+    if (entryPopup.mediaType === 'video' && videoSrc && !hasVideoFailed) {
+      return (
+        <div className="entry-popup__media">
+          <video
+            className="entry-popup__video"
+            src={videoSrc}
+            poster={videoPosterSrc ?? undefined}
+            playsInline
+            muted
+            loop
+            autoPlay
+            controls
+            onError={() => setHasVideoFailed(true)}
+          />
+        </div>
+      );
+    }
+
+    if (hasOptionalMedia(entryPopup.mediaSrc)) {
+      return (
+        <div className="entry-popup__media">
+          <SafeImage
+            className="entry-popup__image"
+            src={entryPopup.mediaSrc}
+            alt={entryPopup.mediaAlt || entryPopup.title || 'Offer media'}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  function renderCta() {
+    if (!entryPopup.ctaLabel.trim() || !entryPopup.ctaHref.trim()) {
+      return null;
+    }
+
+    const href = entryPopup.ctaHref.trim();
+    const isInternal = href.startsWith('/');
+
+    if (isInternal) {
+      return (
+        <Link className="entry-popup__cta" to={href} onClick={handleClose}>
+          <span>{entryPopup.ctaLabel}</span>
+          <i className="fa-solid fa-arrow-right" />
+        </Link>
+      );
+    }
+
+    return (
+      <a
+        className="entry-popup__cta"
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={handleClose}
+      >
+        <span>{entryPopup.ctaLabel}</span>
+        <i className="fa-solid fa-arrow-up-right-from-square" />
+      </a>
+    );
+  }
+
+  if (!entryPopup.enabled || !isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      className="entry-popup"
+      style={accentStyle}
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
+      <div className="entry-popup__dialog" role="dialog" aria-modal="true" aria-label={entryPopup.title}>
+        <button
+          className="entry-popup__close"
+          type="button"
+          aria-label="Dismiss popup"
+          onClick={handleClose}
+        >
+          <X size={18} />
+        </button>
+
+        <div className="entry-popup__layout">
+          <div className="entry-popup__column entry-popup__column--media">
+            {renderMedia()}
+          </div>
+
+          <div className="entry-popup__column entry-popup__column--content">
+            <div className="entry-popup__header">
+              <div className="entry-popup__header-top">
+                <div className="entry-popup__brand">
+                  {hasOptionalMedia(entryPopup.logoSrc) ? (
+                    <SafeImage
+                      className="entry-popup__brand-logo"
+                      src={entryPopup.logoSrc}
+                      alt={entryPopup.logoAlt}
+                    />
+                  ) : (
+                    <span className="entry-popup__brand-fallback">{siteConfig.brandName.slice(0, 1)}</span>
+                  )}
+                  {entryPopup.badge.trim() ? (
+                    <span className="entry-popup__badge">{entryPopup.badge}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="entry-popup__copy">
+                <h2>{entryPopup.title}</h2>
+                {entryPopup.message.trim() ? <p>{entryPopup.message}</p> : null}
+              </div>
+            </div>
+
+            {entryPopup.infoText.trim() ? (
+              <div className="entry-popup__notice">
+                <span className="entry-popup__notice-icon">
+                  <i className="fa-solid fa-sparkles" />
+                </span>
+                <p>{entryPopup.infoText}</p>
+              </div>
+            ) : null}
+
+            {popupRows.length ? (
+              <div className="entry-popup__prices">
+                <div className="entry-popup__prices-head">
+                  <span>{entryPopup.quantityLabel || 'Quantity'}</span>
+                  <span>{entryPopup.priceLabel || 'New Prices'}</span>
+                </div>
+                <div className="entry-popup__prices-body">
+                  {popupRows.map((row, index) => (
+                    <div className="entry-popup__price-row" key={`${row.label}-${row.newPrice}-${index}`}>
+                      <div className="entry-popup__price-label">
+                        <span className="entry-popup__price-dot" />
+                        <strong>{row.label || `Option ${index + 1}`}</strong>
+                      </div>
+                      <span className="entry-popup__price-values">
+                        {row.oldPrice.trim() ? <del>{row.oldPrice}</del> : null}
+                        {row.newPrice.trim() ? <em>{row.newPrice}</em> : null}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="entry-popup__actions">
+              {renderCta()}
+              <button className="entry-popup__dismiss" type="button" onClick={handleClose}>
+                {entryPopup.dismissLabel || 'Dismiss'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -197,11 +529,13 @@ function DiscountBanner() {
     >
       <div className="flex flex-col sm:flex-row items-center justify-between w-[768px] max-w-full gap-3 sm:gap-0 px-4 sm:px-0 relative z-10">
         <div className="flex items-center">
-          <img
-            src={discountBanner.logoSrc}
-            alt={discountBanner.logoAlt}
-            className="w-6 sm:w-[27.5px] h-6 sm:h-[27.5px] object-contain mr-2 sm:mr-3"
-          />
+          {hasOptionalMedia(discountBanner.logoSrc) ? (
+            <SafeImage
+              src={discountBanner.logoSrc}
+              alt={discountBanner.logoAlt}
+              className="w-6 sm:w-[27.5px] h-6 sm:h-[27.5px] object-contain mr-2 sm:mr-3"
+            />
+          ) : null}
           <div className="text-center sm:text-left">
             <p className="font-bold text-xs sm:text-sm text-white leading-tight">{discountBanner.title}</p>
             <p className="font-medium text-[11px] sm:text-[13px] text-white leading-tight">
@@ -238,7 +572,7 @@ function DiscountBanner() {
           </div>
         </div>
       </div>
-      <img
+      <SafeImage
         src={discountBanner.backgroundImageSrc}
         alt="Black Friday Banner"
         className="w-full h-full absolute top-0 left-0 object-cover object-center pointer-events-none"
@@ -291,16 +625,34 @@ function SiteHeader() {
         id="navbar"
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="flex items-center justify-between h-12 sm:h-16">
-            <div className="h-full flex items-center gap-x-4 sm:gap-x-6 lg:gap-x-10">
-              <Link className="h-full flex items-center gap-x-2 sm:gap-x-5" to="/" aria-label={siteConfig.studioName}>
-                <img src={brandAssets.headerLogoSrc} alt={brandAssets.headerLogoAlt} className="w-20 sm:w-28 md:w-32 lg:w-[160px] h-auto" />
-                <div className="hidden sm:block w-px h-10 bg-white/10"></div>
-                <img
-                  src={brandAssets.headerPartnerLogoSrc}
-                  alt={brandAssets.headerPartnerLogoAlt}
-                  className="hidden sm:block w-8 sm:w-10 h-8 sm:h-10 object-contain"
-                />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-x-4 sm:gap-x-6 lg:gap-x-10">
+              <Link className="flex items-center gap-x-2 sm:gap-x-5" to="/" aria-label={siteConfig.studioName}>
+                {hasOptionalMedia(brandAssets.headerLogoSrc) ? (
+                  <img
+                    src={brandAssets.headerLogoSrc || ''}
+                    alt={brandAssets.headerLogoAlt}
+                    style={{
+                      width: 'auto',
+                      maxWidth: '520px',
+                      height: '64px',
+                      display: 'block',
+                      objectFit: 'contain',
+                    }}
+                  />
+                ) : (
+                  <span className="font-bold text-lg sm:text-xl text-white">{siteConfig.brandName}</span>
+                )}
+                {hasOptionalMedia(brandAssets.headerPartnerLogoSrc) ? (
+                  <>
+                    <div className="hidden sm:block w-px h-10 bg-white/10"></div>
+                    <SafeImage
+                      src={brandAssets.headerPartnerLogoSrc}
+                      alt={brandAssets.headerPartnerLogoAlt}
+                      className="hidden sm:block w-8 sm:w-10 h-8 sm:h-10 object-contain"
+                    />
+                  </>
+                ) : null}
               </Link>
 
               <nav className="site-header__nav hidden xl:flex items-center gap-x-6 lg:gap-x-8">
@@ -379,7 +731,7 @@ function SiteHeader() {
                   {currency}
                   <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" size={16} />
                 </summary>
-                <div className="header-dropdown__menu header-dropdown__menu--currency w-max h-max p-2 border-2 border-[#FFFFFF]/5 rounded-xl bg-[#171717]">
+                <div className="header-dropdown__menu header-dropdown__menu--currency w-max h-max">
                   <div className="grid grid-cols-3 gap-1.5">
                     {currencies.map((item) => (
                       <button
@@ -449,7 +801,11 @@ function SiteHeader() {
       <div className={`mobile-panel fixed inset-0 z-[100] ${isMenuOpen ? 'is-open' : ''} overflow-y-auto`}>
         <div className="mobile-panel__header">
           <Link className="mobile-panel__brand" onClick={closeMobileMenu} to="/">
-            <img src={brandAssets.headerLogoSrc} alt={brandAssets.headerLogoAlt} />
+            {hasOptionalMedia(brandAssets.headerLogoSrc) ? (
+              <SafeImage src={brandAssets.headerLogoSrc} alt={brandAssets.headerLogoAlt} />
+            ) : (
+              <span className="font-bold text-white text-lg">{siteConfig.brandName}</span>
+            )}
           </Link>
           <button
             className="mobile-panel__close"
@@ -639,7 +995,7 @@ function CartDrawer() {
           cartLines.map((line) => (
             <article className="cart-line" key={line.product.slug}>
               <Link className="cart-line__image" onClick={closeCart} to={getProductHref(line.product.slug)}>
-                <img src={line.product.image} alt={line.product.title} />
+                <SafeImage src={line.product.image} alt={line.product.title} />
               </Link>
               <div className="cart-line__copy">
                 <Link className="cart-line__title" to={getProductHref(line.product.slug)} onClick={closeCart}>
@@ -690,15 +1046,25 @@ function SiteFooter() {
       <div className="container mx-auto py-8 flex flex-col items-start px-4 sm:px-6 lg:px-8">
         <div className="w-full h-max flex flex-col md:flex-row items-start gap-x-20 gap-y-20">
           <div className="flex flex-col items-start">
-            <img src={brandAssets.footerLogoSrc} alt={brandAssets.footerLogoAlt} className="w-[133px] h-[32px]" />
+            {hasOptionalMedia(brandAssets.footerLogoSrc) ? (
+              <SafeImage
+                src={brandAssets.footerLogoSrc}
+                alt={brandAssets.footerLogoAlt}
+                className="w-[133px] h-[32px]"
+              />
+            ) : null}
             {footer.showPoweredBy ? (
               <div className="flex items-center gap-x-2 mt-2">
                 <p className="font-medium text-xs text-white/10 line-clamp-1">{footer.poweredByLabel}</p>
-                <img src={brandAssets.footerPartnerLogoSrc} alt={brandAssets.footerPartnerLogoAlt} className="w-[55px] h-[26px]" />
+                <SafeImage
+                  src={brandAssets.footerPartnerLogoSrc}
+                  alt={brandAssets.footerPartnerLogoAlt}
+                  className="w-[55px] h-[26px]"
+                />
               </div>
             ) : null}
             {brandAssets.footerDecorationSrc ? (
-              <img src={brandAssets.footerDecorationSrc} alt="" className="mt-4 w-[140px] h-[48px]" />
+              <SafeImage src={brandAssets.footerDecorationSrc} alt="" className="mt-4 w-[140px] h-[48px]" />
             ) : null}
           </div>
 
@@ -844,7 +1210,7 @@ export function ProductCard({
     >
       <Link className="block product-card__image" to={getProductHref(product.slug)}>
         <div className="relative w-full overflow-hidden bg-muted cursor-pointer" style={{ aspectRatio: '16 / 9' }}>
-          <img
+          <SafeImage
             alt={product.fullTitle || product.title}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             src={product.image}
@@ -1046,7 +1412,7 @@ export function FaqPreview() {
             className="w-full h-max flex flex-col xl:flex-row-reverse border border-white/5 rounded-3xl backdrop-blur-lg p-7 gap-x-[20px]"
             style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(0, 0, 0, 0.31) 0%, rgba(71, 71, 71, 0.31) 100%)' }}
           >
-            <img
+            <SafeImage
               src={faq.illustrationSrc}
               alt="FAQ Image"
               className="!hidden 2xl:!flex w-[453px] h-[344px] mb-3 xl:mb-0 object-cover rounded-xl flex-shrink-0"
@@ -1199,7 +1565,7 @@ export function DiscordBannerSection() {
           </p>
         </div>
 
-        <img
+        <SafeImage
           src={discordBanner.imageSrc}
           alt="Discord Banner"
           className="!hidden 2xl:!block absolute bottom-0 right-0 w-full h-full object-cover rounded-[25px] pointer-events-none"
@@ -1235,31 +1601,25 @@ export function AccordionPanel({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="accordion-panel accordion-item w-full">
+    <div className={`accordion-item ${isOpen ? 'is-open' : ''}`}>
       <button
-        className="w-full flex items-center justify-between border-2 border-white/[.04] hover:border-white/[.08] rounded-2xl backdrop-blur-xl p-3 group transition-colors duration-300 cursor-pointer"
+        className="accordion-trigger"
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(42, 42, 42, 0.31) 0%, rgba(51, 51, 51, 0.31) 100%)' }}
       >
-        <span className="flex items-center gap-x-2 min-w-0">
-          <span className="w-[22px] h-[22px] flex items-center justify-center bg-white/[.08] border border-white/[.06] rounded-[6px] flex-shrink-0">
+        <div className="flex items-center min-w-0">
+          <div className="accordion-trigger__icon-box">
             {icon}
-          </span>
-          <span className="text-white font-semibold text-sm line-clamp-1">{title}</span>
-        </span>
-        <i
-          className={`fa-solid fa-chevron-down text-sm text-white/55 group-hover:text-white transition-all duration-300 flex-shrink-0 ${isOpen ? 'rotate-180 text-white' : ''}`}
-        />
-      </button>
-      {isOpen ? (
-        <div
-          className="accordion-panel__content w-full border-2 border-white/[.04] hover:border-white/[.08] rounded-2xl backdrop-blur-xl group transition-colors duration-300 p-3 mt-2"
-          style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(42, 42, 42, 0.31) 0%, rgba(51, 51, 51, 0.31) 100%)' }}
-        >
-          <div className="w-full text-white/60 text-sm leading-relaxed">{children}</div>
+          </div>
+          <span className="accordion-trigger__title">{title}</span>
         </div>
-      ) : null}
+        <i className="fa-solid fa-chevron-down accordion-trigger__chevron" />
+      </button>
+      {isOpen && (
+        <div className="accordion-content">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

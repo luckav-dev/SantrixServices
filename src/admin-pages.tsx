@@ -1,7 +1,28 @@
-﻿import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useRef } from 'react';
-import { Menu, X } from 'lucide-react';
+import * as ScrollArea from '@radix-ui/react-scroll-area';
+import {
+  Bell,
+  Boxes,
+  CreditCard,
+  ExternalLink,
+  FileText,
+  Gem,
+  LayoutDashboard,
+  Layers3,
+  LogOut,
+  Menu,
+  PanelsTopLeft,
+  ReceiptText,
+  Search,
+  ShieldUser,
+  Store,
+  UserSquare2,
+  Users,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import type { FooterColumnConfig, FooterLinkItem, HeaderSocialLink } from './site-config';
 import {
   type Category,
@@ -23,14 +44,40 @@ import {
   type AdminMemberRecord,
 } from './supabase-admin-members';
 import { subscribeToAdminMembershipChanges } from './supabase-admin';
-import './admin.css';
+import { AdminAdminsSection } from './admin-access-sections';
+import { AdminCustomersSection, AdminOrdersSection } from './admin-commerce-sections';
+import { AdminOverviewSection } from './admin-overview-section';
+import { AdminPaymentsSection } from './admin-payment-section';
+import { AdminAuthSection, AdminContentSection, AdminPopupSection } from './admin-storefront-sections';
+import {
+  AdminField,
+  AdminFormCard,
+  type AdminStatItem,
+  AdminPreviewCard,
+  AdminSectionHeading,
+  AdminToggle,
+} from './admin-ui';
+import { hasOptionalMedia } from './media';
+import { SafeImage } from './safe-image';
+import './admin-redesign.css';
 
-const creatorLogoSrc = '/media/logocreadortienda.png';
+// Creator logo removed
+
+interface AdminPageDefinition {
+  slug: string;
+  label: string;
+  group: string;
+  icon: string;
+  eyebrow: string;
+  title: string;
+  description: ReactNode;
+}
 
 const adminPages = [
   {
     slug: 'overview',
     label: 'Overview',
+    group: 'Storefront',
     icon: 'fa-solid fa-grid-2',
     eyebrow: 'Dashboard',
     title: 'Vista general del panel',
@@ -39,6 +86,7 @@ const adminPages = [
   {
     slug: 'branding',
     label: 'Branding',
+    group: 'Storefront',
     icon: 'fa-solid fa-gem',
     eyebrow: 'Branding',
     title: 'Nombre, hero y logotipos',
@@ -47,14 +95,25 @@ const adminPages = [
   {
     slug: 'discount',
     label: 'Banner',
+    group: 'Storefront',
     icon: 'fa-solid fa-percent',
     eyebrow: 'Promoción',
     title: 'Banner, descuento y campaña',
     description: 'Activa o desactiva promociones, cambia el copy y adapta el banner a cada tienda.',
   },
   {
+    slug: 'popup',
+    label: 'Popup',
+    group: 'Storefront',
+    icon: 'fa-solid fa-badge-percent',
+    eyebrow: 'Launch modal',
+    title: 'Oferta de entrada y popup promocional',
+    description: 'Crea un popup inicial con imagen, video o embed para campañas, tutoriales y ofertas.',
+  },
+  {
     slug: 'navigation',
     label: 'Navbar y Footer',
+    group: 'Storefront',
     icon: 'fa-solid fa-bars',
     eyebrow: 'Navegación',
     title: 'Cabecera, footer y enlaces',
@@ -63,6 +122,7 @@ const adminPages = [
   {
     slug: 'categories',
     label: 'Categorías',
+    group: 'Storefront',
     icon: 'fa-solid fa-layer-group',
     eyebrow: 'Catálogo',
     title: 'Categorías y navegación interna',
@@ -71,6 +131,7 @@ const adminPages = [
   {
     slug: 'products',
     label: 'Productos',
+    group: 'Storefront',
     icon: 'fa-solid fa-box-open',
     eyebrow: 'Productos',
     title: 'Alta, orden y destacados',
@@ -79,6 +140,7 @@ const adminPages = [
   {
     slug: 'payments',
     label: 'Payments',
+    group: 'Commerce',
     icon: 'fa-solid fa-credit-card',
     eyebrow: 'Pagos',
     title: 'Gateway, identidad y checkout',
@@ -87,6 +149,7 @@ const adminPages = [
   {
     slug: 'auth',
     label: 'Auth',
+    group: 'Access',
     icon: 'fa-solid fa-right-to-bracket',
     eyebrow: 'Acceso',
     title: 'Login del cliente y proveedores',
@@ -95,6 +158,7 @@ const adminPages = [
   {
     slug: 'customers',
     label: 'Customers',
+    group: 'Commerce',
     icon: 'fa-solid fa-users',
     eyebrow: 'Clientes',
     title: 'Sesiones y clientes reales',
@@ -103,6 +167,7 @@ const adminPages = [
   {
     slug: 'orders',
     label: 'Orders',
+    group: 'Commerce',
     icon: 'fa-solid fa-receipt',
     eyebrow: 'Pedidos',
     title: 'Pedidos y lineas de compra',
@@ -111,6 +176,7 @@ const adminPages = [
   {
     slug: 'admins',
     label: 'Admins',
+    group: 'Access',
     icon: 'fa-solid fa-user-shield',
     eyebrow: 'Acceso',
     title: 'Miembros y roles del panel',
@@ -119,14 +185,38 @@ const adminPages = [
   {
     slug: 'content',
     label: 'Contenido',
+    group: 'Storefront',
     icon: 'fa-solid fa-file-lines',
     eyebrow: 'Contenido',
     title: 'Textos, login y bloques visibles',
     description: 'Administra términos, textos del checkout y módulos públicos de la web.',
   },
-] as const;
+] as const satisfies readonly AdminPageDefinition[];
 
 type AdminPageSlug = (typeof adminPages)[number]['slug'];
+type AdminPageGroup = (typeof adminPages)[number]['group'];
+
+const adminPageIcons: Record<AdminPageSlug, LucideIcon> = {
+  overview: LayoutDashboard,
+  branding: Gem,
+  discount: CreditCard,
+  popup: Bell,
+  navigation: PanelsTopLeft,
+  categories: Layers3,
+  products: Boxes,
+  payments: CreditCard,
+  auth: ShieldUser,
+  customers: Users,
+  orders: ReceiptText,
+  admins: UserSquare2,
+  content: FileText,
+};
+
+const adminGroupLabels: Record<AdminPageGroup, string> = {
+  Storefront: 'Storefront',
+  Commerce: 'Commerce',
+  Access: 'Access',
+};
 
 interface ProductDraft {
   title: string;
@@ -193,6 +283,13 @@ function createEmptyCategory(): Category {
     heading: 'Browse Products',
     productSlugs: [],
     showInNavigation: true,
+  };
+}
+
+function cloneCategory(category: Category): Category {
+  return {
+    ...category,
+    productSlugs: [...category.productSlugs],
   };
 }
 
@@ -299,48 +396,6 @@ function draftToProduct(draft: ProductDraft, categories: Category[]): Product {
   };
 }
 
-function AdminField({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className="admin-field">
-      <span className="admin-field__label">{label}</span>
-      {hint ? <span className="admin-field__hint">{hint}</span> : null}
-      {children}
-    </label>
-  );
-}
-
-function AdminToggle({
-  label,
-  checked,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className={`admin-toggle ${disabled ? 'is-disabled' : ''}`}>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.currentTarget.checked)}
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
 function updateArrayItem<T>(items: T[], index: number, nextItem: T) {
   return items.map((item, currentIndex) => (currentIndex === index ? nextItem : item));
 }
@@ -362,6 +417,36 @@ function formatAdminCurrency(value: number, currency = 'EUR') {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function toLocalDayKey(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function formatCompactDayLabel(value: Date) {
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+  }).format(value);
+}
+
+function getAdminInitials(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    return '??';
+  }
+
+  const parts = normalized.split(/\s+/).filter(Boolean);
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
 }
 
 function getCheckoutProviderLabel(provider: ProductCheckoutProvider | string) {
@@ -412,6 +497,104 @@ function orderMatchesTimeFilter(createdAt: string, filter: string) {
   return true;
 }
 
+function getSidebarInsightText(group: AdminPageGroup) {
+  if (group === 'Commerce') {
+    return 'Pedidos, pagos y clientes';
+  }
+
+  if (group === 'Access') {
+    return 'Accesos y miembros del panel';
+  }
+
+  return 'Marca, navegación y catálogo';
+}
+
+function AdminSidebarNavigation({
+  groupedAdminPages,
+  onClose,
+  onVisitStore,
+  onLogout,
+}: {
+  groupedAdminPages: Record<AdminPageGroup, Array<(typeof adminPages)[number]>>;
+  onClose: () => void;
+  onVisitStore: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="admin-sidebar-shell__inner">
+      <div className="admin-sidebar-shell__brand">
+        <div className="admin-sidebar-shell__brand-main">
+          {/* Brand mark/copy removed */}
+        </div>
+        <button className="admin-sidebar-shell__close" type="button" onClick={onClose} aria-label="Cerrar navegación admin">
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Workspace button removed */}
+
+      <ScrollArea.Root className="admin-sidebar-shell__scroll">
+        <ScrollArea.Viewport className="admin-sidebar-shell__viewport">
+          <div className="admin-sidebar-shell__groups">
+            {(Object.entries(groupedAdminPages) as Array<[AdminPageGroup, Array<(typeof adminPages)[number]>]>).map(
+              ([group, pages]) =>
+                pages.length ? (
+                  <section className="admin-nav-group" key={group}>
+                    <div className="admin-nav-group__head">
+                      <span>{adminGroupLabels[group]}</span>
+                      <p>{getSidebarInsightText(group)}</p>
+                    </div>
+                    <div className="admin-nav-group__links">
+                      {pages.map((page) => {
+                        const Icon = adminPageIcons[page.slug];
+
+                        return (
+                          <NavLink
+                            className={({ isActive }) =>
+                              `admin-nav-link ${isActive ? 'is-active' : ''}`.trim()
+                            }
+                            key={page.slug}
+                            to={`/admin/dashboard/${page.slug}`}
+                            onClick={onClose}
+                          >
+                            <span className="admin-nav-link__icon">
+                              <Icon size={16} />
+                            </span>
+                            <span className="admin-nav-link__copy">
+                              <strong>{page.label}</strong>
+                              <small>{page.eyebrow}</small>
+                            </span>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ) : null,
+            )}
+          </div>
+        </ScrollArea.Viewport>
+        <ScrollArea.Scrollbar className="admin-scrollbar" orientation="vertical">
+          <ScrollArea.Thumb className="admin-scrollbar__thumb" />
+        </ScrollArea.Scrollbar>
+      </ScrollArea.Root>
+
+      <div className="admin-sidebar-shell__footer">
+        <div className="admin-sidebar-shell__footer-actions">
+          <button className="admin-utility-button" type="button" onClick={onVisitStore}>
+            <Store size={15} />
+            <span>Ver tienda</span>
+          </button>
+          <button className="admin-utility-button admin-utility-button--danger" type="button" onClick={onLogout}>
+            <LogOut size={15} />
+            <span>Salir</span>
+          </button>
+        </div>
+        {/* Sidebar signature removed */}
+      </div>
+    </div>
+  );
+}
+
 function AdminAccessState({
   title,
   description,
@@ -421,13 +604,23 @@ function AdminAccessState({
 }) {
   return (
     <section className="admin-auth">
-      <div className="admin-auth__card admin-auth__card--status">
-        <div className="admin-creator-mark admin-creator-mark--login">
-          <img src={creatorLogoSrc} alt="Luckav Development" />
+      <div className="admin-auth__layout admin-auth__layout--status">
+        <div className="admin-auth__showcase">
+          <div className="admin-auth__showcase-copy">
+            <p className="admin-auth__eyebrow">Admin Console</p>
+            <h1>Operational control panel</h1>
+            <p className="admin-auth__copy">
+              Panel compacto para contenido, catálogo, pagos, accesos y sincronización en tiempo real.
+            </p>
+          </div>
+          {/* Showcase signature removed */}
         </div>
-        <p className="admin-auth__eyebrow">Admin Access</p>
-        <h1>{title}</h1>
-        <p className="admin-auth__copy">{description}</p>
+
+        <div className="admin-auth__panel admin-auth__panel--status">
+          <p className="admin-auth__eyebrow">System state</p>
+          <h2>{title}</h2>
+          <p className="admin-auth__copy">{description}</p>
+        </div>
       </div>
     </section>
   );
@@ -440,6 +633,10 @@ export function AdminLoginPage() {
     isRemoteAdminAuth,
     isStorefrontReady,
     loginAdmin,
+    loginAdminWithOAuth,
+    products,
+    categories,
+    siteConfig,
   } = useStore();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -471,61 +668,157 @@ export function AdminLoginPage() {
 
   return (
     <section className="admin-auth">
-      <div className="admin-auth__card">
-        <div className="admin-creator-mark admin-creator-mark--login">
-          <img src={creatorLogoSrc} alt="Luckav Development" />
+      <div className="admin-auth__layout">
+        <div className="admin-auth__showcase">
+          <div className="admin-auth__showcase-copy">
+            <p className="admin-auth__eyebrow">Private admin panel</p>
+            <h1>{siteConfig.studioName}</h1>
+            <p className="admin-auth__copy">
+              Gestión premium del storefront con catálogo, pagos, auth y sincronización instantánea.
+            </p>
+          </div>
+
+          <div className="admin-auth__showcase-brand">
+            {hasOptionalMedia(siteConfig.brandAssets.headerLogoSrc) ? (
+              <SafeImage
+                className="admin-auth__brand-logo"
+                src={siteConfig.brandAssets.headerLogoSrc}
+                alt={siteConfig.brandAssets.headerLogoAlt}
+              />
+            ) : (
+              <span className="admin-auth__brand-fallback">{siteConfig.brandName}</span>
+            )}
+            <span className="admin-pill">{isRemoteAdminAuth ? 'Supabase auth' : 'Local mode'}</span>
+          </div>
+
+          <div className="admin-auth__feature-grid">
+            <article className="admin-auth__feature-card">
+              <span>Products</span>
+              <strong>{products.length}</strong>
+              <p>Catálogo editable con rutas, medios y featured.</p>
+            </article>
+            <article className="admin-auth__feature-card">
+              <span>Categories</span>
+              <strong>{categories.length}</strong>
+              <p>Navegación configurable por tienda sin rehacer frontend.</p>
+            </article>
+            <article className="admin-auth__feature-card">
+              <span>Realtime</span>
+              <strong>{isRemoteAdminAuth ? 'Live' : 'Local'}</strong>
+              <p>Cambios sincronizados entre panel y storefront.</p>
+            </article>
+          </div>
+
+          <div className="admin-auth__showcase-list">
+            <div>
+              <strong>Compact UI</strong>
+              <span>Panel limpio, denso y rápido de escanear.</span>
+            </div>
+            <div>
+              <strong>Store control</strong>
+              <span>Branding, navbar, footer, auth y pagos desde el mismo panel.</span>
+            </div>
+            <div>
+              <strong>Luckav Development</strong>
+              <span>Crédito de creador integrado en la superficie privada del admin.</span>
+            </div>
+          </div>
+
+          {/* Showcase signature removed */}
         </div>
-        <p className="admin-auth__eyebrow">Admin Access</p>
-        <h1>/admin/login</h1>
-        <p className="admin-auth__copy">
-          Este panel te deja cambiar textos, logos, banner, enlaces, categorías y productos sin tocar la estética de la tienda.
-          {isRemoteAdminAuth ? ' El acceso del admin se valida con Supabase Auth.' : ''}
-        </p>
 
-        <form
-          className="admin-auth__form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setError('');
-            setIsSubmitting(true);
-            const result = await loginAdmin(username.trim(), password);
-            setIsSubmitting(false);
+        <div className="admin-auth__panel">
+          <div className="admin-auth__panel-head">
+            <p className="admin-auth__eyebrow">/admin/login</p>
+            <h2>Sign in to dashboard</h2>
+            <p className="admin-auth__copy">
+              Usa tus credenciales de admin para entrar en el panel operativo.
+            </p>
+          </div>
 
-            if (result.ok) {
-              navigate('/admin/dashboard/overview');
-              return;
-            }
+          <form
+            className="admin-auth__form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setError('');
+              setIsSubmitting(true);
+              const result = await loginAdmin(username.trim(), password);
+              setIsSubmitting(false);
 
-            setError(result.message ?? 'No se pudo iniciar sesión.');
-          }}
-        >
-          <AdminField label={isRemoteAdminAuth ? 'Email admin' : 'Usuario'}>
-            <input
-              type={isRemoteAdminAuth ? 'email' : 'text'}
-              autoComplete={isRemoteAdminAuth ? 'email' : 'username'}
-              value={username}
-              onChange={(event) => setUsername(event.currentTarget.value)}
-            />
-          </AdminField>
+              if (result.ok) {
+                navigate('/admin/dashboard/overview');
+                return;
+              }
 
-          <AdminField label="Contraseña">
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.currentTarget.value)}
-            />
-          </AdminField>
+              setError(result.message ?? 'No se pudo iniciar sesión.');
+            }}
+          >
+            <AdminField label={isRemoteAdminAuth ? 'Email admin' : 'Usuario'}>
+              <input
+                type={isRemoteAdminAuth ? 'email' : 'text'}
+                autoComplete={isRemoteAdminAuth ? 'email' : 'username'}
+                value={username}
+                onChange={(event) => setUsername(event.currentTarget.value)}
+                placeholder={isRemoteAdminAuth ? 'owner@store.com' : 'admin'}
+              />
+            </AdminField>
 
-          {error ? <p className="admin-auth__error">{error}</p> : null}
+            <AdminField label="Contraseña">
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.currentTarget.value)}
+                placeholder="••••••••••"
+              />
+            </AdminField>
 
-          <button className="admin-button admin-button--primary" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Entrando...' : 'Entrar al dashboard'}
-          </button>
-          <Link className="admin-button admin-button--ghost" to="/">
-            Volver a la tienda
-          </Link>
-        </form>
+            {error ? <p className="admin-auth__error">{error}</p> : null}
+
+            <div className="admin-auth__actions">
+              <button className="admin-button admin-button--primary" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Entrando...' : 'Entrar al dashboard'}
+              </button>
+              <Link className="admin-button admin-button--ghost" to="/">
+                Volver a la tienda
+              </Link>
+            </div>
+          </form>
+
+          {isRemoteAdminAuth ? (
+            <div className="admin-auth__social">
+              <div className="admin-auth__separator">
+                <span>O continuar con</span>
+              </div>
+              <button
+                className="admin-button admin-button--social admin-button--google"
+                type="button"
+                onClick={() => loginAdminWithOAuth('google')}
+                disabled={isSubmitting}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path
+                    fill="#4285F4"
+                    d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.12-.84 2.07-1.79 2.71v2.25h2.91c1.7-1.56 2.68-3.87 2.68-6.61z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.25c-.81.54-1.85.87-3.05.87-2.34 0-4.32-1.58-5.03-3.71H.95v2.3C2.43 15.98 5.45 18 9 18z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M3.97 10.73c-.18-.54-.28-1.12-.28-1.73s.1-1.19.28-1.73V4.97H.95A8.996 8.996 0 000 9c0 1.45.35 2.82.95 4.03l3.02-2.3z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.89 11.43 0 9 0 5.45 0 2.43 2.02.95 4.97l3.02 2.3c.71-2.13 2.69-3.71 5.03-3.71z"
+                  />
+                </svg>
+                <span>Acceder con Google</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </section>
   );
@@ -556,6 +849,13 @@ export function AdminDashboardPage() {
   } = useStore();
   const navigate = useNavigate();
   const { section = 'overview' } = useParams<{ section?: string }>();
+  const [isCategoryEditorOpen, setIsCategoryEditorOpen] = useState(false);
+  const [editingCategorySourceId, setEditingCategorySourceId] = useState<string | null>(null);
+  const [categoryDraft, setCategoryDraftState] = useState<Category>(() =>
+    categories[0] ? cloneCategory(categories[0]) : createEmptyCategory(),
+  );
+  const [categorySavedMessage, setCategorySavedMessage] = useState('');
+  const [isProductEditorOpen, setIsProductEditorOpen] = useState(false);
   const [selectedProductSlug, setSelectedProductSlug] = useState<string | null>(products[0]?.slug ?? null);
   const [productDraft, setProductDraftState] = useState<ProductDraft>(() =>
     products[0] ? productToDraft(products[0]) : emptyProductDraft(categories[0]?.id ?? ''),
@@ -581,13 +881,60 @@ export function AdminDashboardPage() {
   const [adminRoleDraft, setAdminRoleDraft] = useState<AdminMemberRecord['role']>('editor');
   const [adminActionMessage, setAdminActionMessage] = useState('');
   const [isAdminActionBusy, setIsAdminActionBusy] = useState(false);
+  const categoryDraftRef = useRef(categoryDraft);
   const productDraftRef = useRef(productDraft);
+
+  function setCategoryDraft(next: Category | ((current: Category) => Category)) {
+    const resolved = applyValue(categoryDraftRef.current, next);
+    categoryDraftRef.current = resolved;
+    setCategoryDraftState(resolved);
+  }
 
   function setProductDraft(next: ProductDraft | ((current: ProductDraft) => ProductDraft)) {
     const resolved = applyValue(productDraftRef.current, next);
     productDraftRef.current = resolved;
     setProductDraftState(resolved);
   }
+
+  useEffect(() => {
+    if (!categories.length) {
+      setCategoryDraft(createEmptyCategory());
+      setEditingCategorySourceId(null);
+      setIsCategoryEditorOpen(false);
+      return;
+    }
+
+    if (!editingCategorySourceId) {
+      return;
+    }
+
+    const selectedCategory = categories.find((category) => category.id === editingCategorySourceId);
+
+    if (!selectedCategory) {
+      setEditingCategorySourceId(null);
+      setIsCategoryEditorOpen(false);
+      setCategoryDraft(createEmptyCategory());
+      return;
+    }
+
+    setCategoryDraft(cloneCategory(selectedCategory));
+  }, [categories, editingCategorySourceId]);
+
+  useEffect(() => {
+    if (!isCategoryEditorOpen && !isProductEditorOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeCategoryEditor();
+        closeProductEditor();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCategoryEditorOpen, isProductEditorOpen]);
 
   useEffect(() => {
     const selectedProduct = products.find((product) => product.slug === selectedProductSlug);
@@ -597,6 +944,10 @@ export function AdminDashboardPage() {
         : emptyProductDraft(categories[0]?.id ?? ''),
     );
   }, [categories, products, selectedProductSlug]);
+
+  useEffect(() => {
+    categoryDraftRef.current = categoryDraft;
+  }, [categoryDraft]);
 
   useEffect(() => {
     productDraftRef.current = productDraft;
@@ -719,28 +1070,77 @@ export function AdminDashboardPage() {
     };
   }, [adminSession?.authMode, isRemoteAdminAuth]);
 
+  const normalizedCustomerQuery = customerQuery.trim().toLowerCase();
+  const filteredCustomers = customers.filter((customer) =>
+    matchesAdminQuery(
+      normalizedCustomerQuery,
+      customer.displayName,
+      customer.email,
+      customer.userId,
+      customer.provider,
+    ),
+  );
+
+  const normalizedOrderQuery = orderQuery.trim().toLowerCase();
+  const filteredOrders = orders.filter((order) => {
+    const matchesQuery = matchesAdminQuery(
+      normalizedOrderQuery,
+      order.id,
+      order.customerName,
+      order.customerEmail,
+      order.provider,
+      ...order.items.flatMap((item) => [item.productTitle, item.productSlug]),
+    );
+    const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
+    const matchesTime = orderMatchesTimeFilter(order.createdAt, orderTimeFilter);
+    return matchesQuery && matchesStatus && matchesTime;
+  });
+
+  const sortedOrders = [...filteredOrders].sort((left, right) => {
+    if (orderSort === 'highest') {
+      return right.totalEur - left.totalEur;
+    }
+
+    if (orderSort === 'lowest') {
+      return left.totalEur - right.totalEur;
+    }
+
+    const leftTime = new Date(left.createdAt).getTime();
+    const rightTime = new Date(right.createdAt).getTime();
+
+    return orderSort === 'oldest' ? leftTime - rightTime : rightTime - leftTime;
+  });
+
   useEffect(() => {
-    if (!customers.length) {
+    if (!isCommerceReady) {
+      return;
+    }
+
+    if (!filteredCustomers.length) {
       setSelectedCustomerId(null);
       return;
     }
 
-    if (!selectedCustomerId || !customers.some((customer) => customer.userId === selectedCustomerId)) {
-      setSelectedCustomerId(customers[0].userId);
+    if (!selectedCustomerId || !filteredCustomers.some((customer) => customer.userId === selectedCustomerId)) {
+      setSelectedCustomerId(filteredCustomers[0].userId);
     }
-  }, [customers, selectedCustomerId]);
+  }, [filteredCustomers, isCommerceReady, selectedCustomerId]);
 
   useEffect(() => {
-    if (!orders.length) {
+    if (!sortedOrders.length) {
       setSelectedOrderId(null);
       setExpandedOrderId(null);
       return;
     }
 
-    if (!selectedOrderId || !orders.some((order) => order.id === selectedOrderId)) {
-      setSelectedOrderId(orders[0].id);
+    if (!selectedOrderId || !sortedOrders.some((order) => order.id === selectedOrderId)) {
+      setSelectedOrderId(sortedOrders[0].id);
     }
-  }, [orders, selectedOrderId]);
+
+    if (expandedOrderId && !sortedOrders.some((order) => order.id === expandedOrderId)) {
+      setExpandedOrderId(null);
+    }
+  }, [expandedOrderId, selectedOrderId, sortedOrders]);
 
   if (!isAdminAuthReady) {
     return (
@@ -767,6 +1167,18 @@ export function AdminDashboardPage() {
   const activePage =
     adminPages.find((page) => page.slug === (section as AdminPageSlug)) ??
     adminPages[0];
+  const groupedAdminPages = adminPages.reduce<Record<AdminPageGroup, Array<(typeof adminPages)[number]>>>(
+    (groups, page) => {
+      const nextGroup = groups[page.group] ?? [];
+      groups[page.group] = [...nextGroup, page];
+      return groups;
+    },
+    {
+      Storefront: [],
+      Commerce: [],
+      Access: [],
+    } as Record<AdminPageGroup, Array<(typeof adminPages)[number]>>,
+  );
 
   if (!adminPages.some((page) => page.slug === (section as AdminPageSlug))) {
     return <Navigate to="/admin/dashboard/overview" replace />;
@@ -803,6 +1215,89 @@ export function AdminDashboardPage() {
     });
   }
 
+  function openCategoryEditor(category?: Category) {
+    const nextCategory = category ? cloneCategory(category) : createEmptyCategory();
+    setEditingCategorySourceId(category?.id ?? null);
+    setCategoryDraft(nextCategory);
+    setIsCategoryEditorOpen(true);
+    setCategorySavedMessage('');
+  }
+
+  function closeCategoryEditor() {
+    setIsCategoryEditorOpen(false);
+    setCategorySavedMessage('');
+  }
+
+  function saveCategoryDraft() {
+    const normalizedId = slugify(categoryDraft.id || categoryDraft.label || `category-${Date.now()}`);
+    const nextCategory: Category = {
+      ...categoryDraft,
+      id: normalizedId,
+      label: categoryDraft.label.trim() || 'New Category',
+      heading: categoryDraft.heading.trim() || 'Browse Products',
+      description: categoryDraft.description.trim(),
+      url: categoryDraft.url.trim(),
+      productSlugs: [...categoryDraft.productSlugs],
+    };
+
+    if (editingCategorySourceId && editingCategorySourceId !== normalizedId) {
+      renameCategoryId(editingCategorySourceId, normalizedId);
+    }
+
+    upsertCategory(nextCategory);
+    setEditingCategorySourceId(normalizedId);
+    setCategoryDraft(nextCategory);
+    setCategorySavedMessage('Categoría guardada.');
+    window.setTimeout(() => setCategorySavedMessage(''), 1800);
+  }
+
+  function deleteCategoryDraft() {
+    const categoryId = editingCategorySourceId ?? categoryDraft.id;
+
+    if (!categoryId) {
+      closeCategoryEditor();
+      return;
+    }
+
+    deleteCategory(categoryId);
+    closeCategoryEditor();
+  }
+
+  function openProductEditor(product?: Product) {
+    if (product) {
+      setSelectedProductSlug(product.slug);
+      setProductDraft(productToDraft(product));
+    } else {
+      setSelectedProductSlug(null);
+      setProductDraft(emptyProductDraft(categories[0]?.id ?? ''));
+    }
+
+    setIsProductEditorOpen(true);
+    setProductSavedMessage('');
+  }
+
+  function closeProductEditor() {
+    setIsProductEditorOpen(false);
+    setProductSavedMessage('');
+  }
+
+  function deleteCurrentProduct() {
+    if (!selectedProductSlug) {
+      closeProductEditor();
+      return;
+    }
+
+    const currentIndex = products.findIndex((product) => product.slug === selectedProductSlug);
+    const fallbackSlug =
+      products[currentIndex + 1]?.slug ??
+      products[currentIndex - 1]?.slug ??
+      null;
+
+    deleteProduct(selectedProductSlug);
+    setSelectedProductSlug(fallbackSlug);
+    setIsProductEditorOpen(false);
+  }
+
   function saveProduct() {
     if (!categories.length) {
       return;
@@ -819,44 +1314,6 @@ export function AdminDashboardPage() {
   }
 
   const visibleCategoriesCount = categories.filter((category) => category.showInNavigation !== false).length;
-  const normalizedCustomerQuery = customerQuery.trim().toLowerCase();
-  const normalizedOrderQuery = orderQuery.trim().toLowerCase();
-  const filteredCustomers = customers.filter((customer) =>
-    matchesAdminQuery(
-      normalizedCustomerQuery,
-      customer.displayName,
-      customer.email,
-      customer.userId,
-      customer.provider,
-    ),
-  );
-  const filteredOrders = orders.filter((order) => {
-    const matchesQuery = matchesAdminQuery(
-      normalizedOrderQuery,
-      order.id,
-      order.customerName,
-      order.customerEmail,
-      order.provider,
-      ...order.items.flatMap((item) => [item.productTitle, item.productSlug]),
-    );
-    const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
-    const matchesTime = orderMatchesTimeFilter(order.createdAt, orderTimeFilter);
-    return matchesQuery && matchesStatus && matchesTime;
-  });
-  const sortedOrders = [...filteredOrders].sort((left, right) => {
-    if (orderSort === 'highest') {
-      return right.totalEur - left.totalEur;
-    }
-
-    if (orderSort === 'lowest') {
-      return left.totalEur - right.totalEur;
-    }
-
-    const leftTime = new Date(left.createdAt).getTime();
-    const rightTime = new Date(right.createdAt).getTime();
-
-    return orderSort === 'oldest' ? leftTime - rightTime : rightTime - leftTime;
-  });
   const selectedCustomer =
     filteredCustomers.find((customer) => customer.userId === selectedCustomerId) ??
     filteredCustomers[0] ??
@@ -899,76 +1356,256 @@ export function AdminDashboardPage() {
     ) ??
     siteConfig.customerLogin.providers[0] ??
     null;
+  const footerLinkCount = siteConfig.footer.columns.reduce((sum, column) => sum + column.links.length, 0);
+  const heroHeadline = [
+    siteConfig.homeHero.titlePrefix,
+    siteConfig.homeHero.titleHighlight,
+    siteConfig.homeHero.titleSuffix,
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(' ');
+  const productPreviewPrice = productDraft.priceValue
+    ? formatAdminCurrency(Number(productDraft.priceValue) || 0)
+    : 'Sin precio';
+  const productPreviewOldPrice = productDraft.oldPriceValue
+    ? formatAdminCurrency(Number(productDraft.oldPriceValue) || 0)
+    : '';
+  const productPreviewBadges = [
+    productDraft.categoryId,
+    productDraft.checkoutProvider ? getCheckoutProviderLabel(productDraft.checkoutProvider) : '',
+    productDraft.requiresIdentity ? 'Identity required' : '',
+  ].filter(Boolean);
+  const anonymousCustomersCount = customers.filter((customer) => customer.isAnonymous).length;
+  const completedOrdersCount = orders.filter((order) => order.status === 'completed').length;
+  const pendingOrdersCount = orders.filter((order) => order.status === 'pending').length;
+  const categoryPreviewItems = categories.map((category) => ({
+    ...category,
+    totalProducts: products.filter((product) =>
+      product.categoryId === category.id || product.categories.includes(category.id),
+    ).length,
+  }));
+  const adminRoleSummary = {
+    owner: adminMembers.filter((member) => member.role === 'owner').length,
+    admin: adminMembers.filter((member) => member.role === 'admin').length,
+    editor: adminMembers.filter((member) => member.role === 'editor').length,
+  };
+  const lastSevenDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    return date;
+  });
+  const overviewSeries = lastSevenDays.map((date) => {
+    const dayKey = toLocalDayKey(date);
+    const revenue = orders.reduce((sum, order) => (
+      toLocalDayKey(order.createdAt) === dayKey ? sum + order.totalEur : sum
+    ), 0);
+    const orderCount = orders.filter((order) => toLocalDayKey(order.createdAt) === dayKey).length;
+    const customerCount = customers.filter((customer) => toLocalDayKey(customer.createdAt) === dayKey).length;
 
-  useEffect(() => {
-    if (!filteredCustomers.length) {
-      setSelectedCustomerId(null);
-      return;
-    }
+    return {
+      label: formatCompactDayLabel(date),
+      revenue: Number(revenue.toFixed(2)),
+      orders: orderCount,
+      customers: customerCount,
+    };
+  });
+  const latestCompletedOrders = orders.filter((order) => order.status === 'completed').slice(0, 6);
+  const topProducts = Object.values(
+    orders.reduce<Record<string, { title: string; quantity: number; revenue: number }>>((groups, order) => {
+      order.items.forEach((item) => {
+        const current = groups[item.productSlug] ?? {
+          title: item.productTitle,
+          quantity: 0,
+          revenue: 0,
+        };
+        current.quantity += item.quantity;
+        current.revenue += item.subtotalEur;
+        groups[item.productSlug] = current;
+      });
+      return groups;
+    }, {}),
+  )
+    .sort((left, right) => {
+      if (right.quantity === left.quantity) {
+        return right.revenue - left.revenue;
+      }
 
-    if (!selectedCustomerId || !filteredCustomers.some((customer) => customer.userId === selectedCustomerId)) {
-      setSelectedCustomerId(filteredCustomers[0].userId);
-    }
-  }, [filteredCustomers, selectedCustomerId]);
+      return right.quantity - left.quantity;
+    })
+    .slice(0, 5)
+    .map((product) => ({
+      title: product.title,
+      quantity: product.quantity,
+      revenueLabel: formatAdminCurrency(product.revenue),
+    }));
+  const overviewSignals = [
+    {
+      label: 'Sync',
+      value: isRemoteAdminAuth ? 'Supabase' : 'Local',
+      detail: isRemoteAdminAuth ? 'Realtime activo con la base de datos.' : 'Modo local sin backend remoto.',
+      tone: isRemoteAdminAuth ? 'success' : 'warning',
+    },
+    {
+      label: 'Primary auth',
+      value: primaryCustomerProvider?.label ?? 'Disabled',
+      detail: `${enabledCustomerProviders.length} proveedores disponibles para cliente.`,
+      tone: enabledCustomerProviders.length ? 'success' : 'warning',
+    },
+    {
+      label: 'Discount',
+      value: siteConfig.discountBanner.enabled ? 'Enabled' : 'Disabled',
+      detail: siteConfig.discountBanner.enabled
+        ? siteConfig.discountBanner.code || 'Campaña configurada'
+        : 'Sin campaña activa en storefront.',
+      tone: siteConfig.discountBanner.enabled ? 'success' : 'neutral',
+    },
+    {
+      label: 'Footer',
+      value: `${siteConfig.footer.columns.length} cols`,
+      detail: `${footerLinkCount} enlaces visibles ahora mismo.`,
+      tone: 'neutral',
+    },
+  ] as const;
 
-  useEffect(() => {
-    if (!sortedOrders.length) {
-      setSelectedOrderId(null);
-      setExpandedOrderId(null);
-      return;
-    }
+  // Stats and summaries moved after all hooks
 
-    if (!selectedOrderId || !sortedOrders.some((order) => order.id === selectedOrderId)) {
-      setSelectedOrderId(sortedOrders[0].id);
-    }
-
-    if (expandedOrderId && !sortedOrders.some((order) => order.id === expandedOrderId)) {
-      setExpandedOrderId(null);
-    }
-  }, [expandedOrderId, selectedOrderId, sortedOrders]);
 
   const adminStats = [
     {
-      label: 'Productos',
-      value: String(products.length),
-      detail: 'Editables y reordenables',
-      icon: 'fa-solid fa-box-open',
-    },
-    {
-      label: 'Categorías',
-      value: String(categories.length),
-      detail: `${visibleCategoriesCount} visibles en navbar`,
-      icon: 'fa-solid fa-layer-group',
-    },
-    {
-      label: 'Featured',
-      value: String(featuredSlugs.length),
-      detail: 'Cards destacadas en home',
-      icon: 'fa-solid fa-fire',
-    },
-    {
-      label: 'Banner',
-      value: siteConfig.discountBanner.enabled ? 'ON' : 'OFF',
-      detail: siteConfig.discountBanner.enabled ? siteConfig.discountBanner.code || 'Activo' : 'Oculto',
-      icon: 'fa-solid fa-percent',
-    },
-    {
-      label: 'Customers',
-      value: isRemoteAdminAuth ? String(customers.length) : '--',
-      detail: isRemoteAdminAuth ? 'Clientes en Supabase' : 'Disponible con Supabase',
-      icon: 'fa-solid fa-users',
+      label: 'Revenue',
+      value: isRemoteAdminAuth ? formatAdminCurrency(totalRevenueEur) : '--',
+      detail: isRemoteAdminAuth ? 'Ingresos registrados en pedidos sincronizados.' : 'Disponible con Supabase',
+      icon: 'fa-solid fa-euro-sign',
     },
     {
       label: 'Orders',
       value: isRemoteAdminAuth ? String(orders.length) : '--',
-      detail: isRemoteAdminAuth ? 'Pedidos recientes' : 'Disponible con Supabase',
+      detail: isRemoteAdminAuth ? `${completedOrdersCount} completados` : 'Disponible con Supabase',
       icon: 'fa-solid fa-receipt',
     },
     {
+      label: 'Customers',
+      value: isRemoteAdminAuth ? String(customers.length) : '--',
+      detail: isRemoteAdminAuth ? `${anonymousCustomersCount} anónimos` : 'Disponible con Supabase',
+      icon: 'fa-solid fa-users',
+    },
+    {
+      label: 'Catalog',
+      value: `${products.length} / ${categories.length}`,
+      detail: `${visibleCategoriesCount} categorías visibles y ${featuredSlugs.length} destacados`,
+      icon: 'fa-solid fa-box-open',
+    },
+  ];
+  const paymentStats: AdminStatItem[] = [
+    {
+      label: 'Tebex',
+      value: paymentSummary.tebex,
+      detail: 'Productos que salen por checkout oficial de Tebex.',
+    },
+    {
+      label: 'PayPal',
+      value: paymentSummary.paypal,
+      detail: 'Productos preparados para Orders API y captura server-side.',
+    },
+    {
+      label: 'External',
+      value: paymentSummary.external,
+      detail: 'Modelados, pero bloqueados hasta integrar confirmación real.',
+    },
+    {
+      label: 'Identity',
+      value: paymentSummary.requiresIdentity,
+      detail: 'Productos que exigen identidad validada antes del pago.',
+    },
+  ];
+  const authStats: AdminStatItem[] = [
+    {
+      label: 'Enabled',
+      value: enabledCustomerProviders.length,
+      detail: 'Proveedores visibles ahora mismo en la página de login.',
+    },
+    {
+      label: 'Primary',
+      value: primaryCustomerProvider?.label ?? 'Sin definir',
+      detail: 'Proveedor principal mostrado en header y login.',
+    },
+    {
+      label: 'Header',
+      value: siteConfig.header.guestLoginLabel,
+      detail: 'Texto del CTA de acceso en la cabecera pública.',
+    },
+    {
+      label: 'Session',
+      value: siteConfig.customerLogin.headerLoggedInTextPrefix || 'Sin prefijo',
+      detail: 'Prefijo visible cuando el cliente ya está conectado.',
+    },
+  ];
+  const customerStats: AdminStatItem[] = [
+    {
+      label: 'Customers',
+      value: customers.length,
+      detail: 'Total de clientes detectados en Supabase.',
+    },
+    {
+      label: 'Anonymous',
+      value: anonymousCustomersCount,
+      detail: 'Sesiones anónimas creadas sin proveedor social.',
+    },
+    {
+      label: 'Orders linked',
+      value: orders.length,
+      detail: 'Pedidos asociados a clientes reales en la tienda.',
+    },
+    {
       label: 'Revenue',
-      value: isRemoteAdminAuth ? `${totalRevenueEur.toFixed(0)}€` : '--',
-      detail: isRemoteAdminAuth ? 'Volumen total registrado' : 'Disponible con Supabase',
-      icon: 'fa-solid fa-euro-sign',
+      value: formatAdminCurrency(totalRevenueEur),
+      detail: 'Facturación total agregada desde los pedidos registrados.',
+    },
+  ];
+  const orderStats: AdminStatItem[] = [
+    {
+      label: 'Orders',
+      value: orders.length,
+      detail: 'Total de checkouts guardados para esta tienda.',
+    },
+    {
+      label: 'Completed',
+      value: completedOrdersCount,
+      detail: 'Pedidos finalizados y listos para contabilidad real.',
+    },
+    {
+      label: 'Pending',
+      value: pendingOrdersCount,
+      detail: 'Pedidos todavía a la espera de confirmación o webhook.',
+    },
+    {
+      label: 'Revenue',
+      value: formatAdminCurrency(totalRevenueEur),
+      detail: 'Volumen acumulado en pedidos sincronizados.',
+    },
+  ];
+  const adminAccessStats: AdminStatItem[] = [
+    {
+      label: 'Owners',
+      value: adminRoleSummary.owner,
+      detail: 'Control total del panel y de los miembros.',
+    },
+    {
+      label: 'Admins',
+      value: adminRoleSummary.admin,
+      detail: 'Gestión operativa sin control sobre miembros.',
+    },
+    {
+      label: 'Editors',
+      value: adminRoleSummary.editor,
+      detail: 'Edición de contenido con permisos limitados.',
+    },
+    {
+      label: 'Your role',
+      value: adminSession.role ?? 'unknown',
+      detail: canManageAdmins ? 'Puedes gestionar miembros.' : 'Vista de solo lectura.',
     },
   ];
 
@@ -1033,86 +1670,30 @@ export function AdminDashboardPage() {
     }
   }
 
+  const todayChipLabel = new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+  }).format(new Date());
+
   return (
     <section className="admin-shell">
-      <aside className={`mobile-panel admin-sidebar ${isSidebarOpen ? 'is-open' : ''}`} aria-hidden={!isSidebarOpen}>
-        <div className="mobile-panel__header admin-sidebar__header">
-          <Link className="mobile-panel__brand" to="/">
-            <img src={siteConfig.brandAssets.headerLogoSrc} alt={siteConfig.brandAssets.headerLogoAlt} />
-          </Link>
-          <button
-            className="mobile-panel__close admin-sidebar__close"
-            type="button"
-            aria-label="Cerrar panel admin"
-            onClick={closeSidebar}
-          >
-            <X size={22} />
-          </button>
-        </div>
-
-        <div className="mobile-panel__body admin-sidebar__body">
-          <div className="admin-sidebar__intro">
-            <p className="admin-sidebar__eyebrow">Admin Dashboard</p>
-            <div className="admin-sidebar__badge">CONTROL PANEL</div>
-            <h1>{siteConfig.studioName}</h1>
-            <p className="admin-sidebar__copy">
-              Cambios guardados al instante. Si tienes la tienda abierta en otra pestaña, se actualiza sola.
-            </p>
-            <div className="admin-creator-mark admin-creator-mark--sidebar">
-              <img src={creatorLogoSrc} alt="Luckav Development" />
-            </div>
-          </div>
-
-          <nav className="mobile-panel__nav admin-sidebar__nav">
-            {adminPages.map((page) => (
-              <NavLink
-                className={({ isActive }) =>
-                  `mobile-panel__link admin-sidebar__nav-link ${isActive ? 'is-active' : ''}`
-                }
-                to={`/admin/dashboard/${page.slug}`}
-                key={page.slug}
-                onClick={closeSidebar}
-              >
-                <span className="mobile-panel__link-copy">
-                  <i className={page.icon} />
-                  <span>{page.label}</span>
-                </span>
-                <i className="fa-solid fa-chevron-right admin-sidebar__nav-chevron" />
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-
-        <div className="mobile-panel__footer admin-sidebar__footer">
-          <button
-            className="mobile-panel__basket-link admin-sidebar__footer-link"
-            type="button"
-            onClick={() => {
-              closeSidebar();
-              navigate('/');
-            }}
-          >
-            <span className="mobile-panel__link-copy">
-              <i className="fa-solid fa-store" />
-              <span>Ver tienda</span>
-            </span>
-          </button>
-          <button
-            className="mobile-panel__login-link admin-sidebar__footer-link"
-            type="button"
-            onClick={() => {
-              closeSidebar();
-              void logoutAdmin();
-            }}
-          >
-            <i className="fa-solid fa-right-from-bracket" />
-            <span>Cerrar sesión</span>
-          </button>
-        </div>
+      <aside className={`admin-sidebar ${isSidebarOpen ? 'is-open' : ''}`} aria-hidden={!isSidebarOpen}>
+        <AdminSidebarNavigation
+          groupedAdminPages={groupedAdminPages}
+          onClose={closeSidebar}
+          onVisitStore={() => {
+            closeSidebar();
+            navigate('/');
+          }}
+          onLogout={() => {
+            closeSidebar();
+            void logoutAdmin();
+          }}
+        />
       </aside>
 
       <button
-        className={`scrim admin-scrim ${isSidebarOpen ? 'is-visible' : ''}`}
+        className={`admin-scrim ${isSidebarOpen ? 'is-visible' : ''}`}
         type="button"
         aria-hidden={!isSidebarOpen}
         onClick={closeSidebar}
@@ -1130,2457 +1711,1501 @@ export function AdminDashboardPage() {
               <Menu size={20} />
             </button>
 
-            <div className="admin-topbar__brand">
-              <img
-                className="admin-topbar__logo"
-                src={siteConfig.brandAssets.headerLogoSrc}
-                alt={siteConfig.brandAssets.headerLogoAlt}
-              />
-              <span className="admin-topbar__divider" />
-              <img
-                className="admin-topbar__partner"
-                src={siteConfig.brandAssets.headerPartnerLogoSrc}
-                alt={siteConfig.brandAssets.headerPartnerLogoAlt}
-              />
+            <div className="admin-topbar__copy">
+              <p>{activePage.eyebrow}</p>
+              <h1>{activePage.title}</h1>
             </div>
 
-            <div className="admin-topbar__copy">
-              <p>{siteConfig.brandName}</p>
-              <h1>{activePage.label}</h1>
+            <div className="admin-topbar__meta">
+              <span className="admin-topbar__meta-pill">
+                <Search size={14} />
+                {activePage.label}
+              </span>
+              <span className="admin-topbar__meta-pill">
+                <Bell size={14} />
+                {isRemoteAdminAuth ? 'Live sync' : 'Local mode'}
+              </span>
             </div>
           </div>
 
           <div className="admin-topbar__actions">
-            <div className="admin-creator-mark admin-creator-mark--topbar">
-              <img src={creatorLogoSrc} alt="Luckav Development" />
-            </div>
-            <button className="admin-button admin-button--ghost admin-button--small" type="button" onClick={() => navigate('/')}>
-              Ver tienda
+            <span className="admin-topbar__chip">
+              <Store size={14} />
+              {siteConfig.brandName}
+            </span>
+            <span className="admin-topbar__chip">
+              <Bell size={14} />
+              {todayChipLabel}
+            </span>
+            <button className="admin-utility-button" type="button" onClick={() => navigate('/')}>
+              <ExternalLink size={14} />
+              <span>Ver tienda</span>
             </button>
-            <button className="admin-button admin-button--primary admin-button--small" type="button" onClick={() => void logoutAdmin()}>
-              Cerrar sesión
+            <button className="admin-utility-button admin-utility-button--primary" type="button" onClick={() => void logoutAdmin()}>
+              <LogOut size={14} />
+              <span>Cerrar sesión</span>
             </button>
           </div>
         </header>
 
         <div className="admin-content">
-          <section className="admin-hero">
-            <div className="admin-hero__copy">
+          <section className="admin-page-hero">
+            <div className="admin-page-hero__copy">
               <p className="admin-section__eyebrow">{activePage.eyebrow}</p>
-              <h2>
-                <em>{siteConfig.brandName}</em> · {activePage.title}
-              </h2>
+              <h2>{activePage.label}</h2>
               <p>{activePage.description}</p>
             </div>
 
-            <div className="admin-hero__meta">
-              <span className="admin-hero__panel-pill">{activePage.label}</span>
-              <span>{visibleCategoriesCount} categorías visibles</span>
-              <span>{siteConfig.footer.columns.length} columnas en footer</span>
-              <span>{siteConfig.discountBanner.enabled ? 'Promoción activa' : 'Promoción desactivada'}</span>
+            <div className="admin-page-hero__meta">
+              <span className="admin-page-hero__meta-pill">{adminSession.role} role</span>
+              <span className="admin-page-hero__meta-pill">{visibleCategoriesCount} categorías visibles</span>
+              <span className="admin-page-hero__meta-pill">{products.length} productos</span>
+              <span className="admin-page-hero__meta-pill">
+                {siteConfig.discountBanner.enabled ? 'Promoción activa' : 'Promoción off'}
+              </span>
             </div>
           </section>
 
           <div className="admin-panel" data-admin-page={activePage.slug}>
-            <section className="admin-section" id="overview">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Overview</p>
-                <h2>Estado actual de la tienda</h2>
-              </div>
-
-              <section className="admin-stats" aria-label="Resumen rápido del dashboard">
-                {adminStats.map((item) => (
-                  <article className="admin-stat-card" key={item.label}>
-                    <div className="admin-stat-card__icon">
-                      <i className={item.icon} />
-                    </div>
-                    <div className="admin-stat-card__copy">
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                      <p>{item.detail}</p>
-                    </div>
-                  </article>
-                ))}
-              </section>
-            </section>
+            <AdminOverviewSection
+              stats={adminStats}
+              series={{
+                labels: overviewSeries.map((entry) => entry.label),
+                revenue: overviewSeries.map((entry) => entry.revenue),
+                orders: overviewSeries.map((entry) => entry.orders),
+                customers: overviewSeries.map((entry) => entry.customers),
+              }}
+              signals={[...overviewSignals]}
+              latestCompletedOrders={latestCompletedOrders}
+              topProducts={topProducts}
+              customers={customers}
+              totalRevenueLabel={formatAdminCurrency(totalRevenueEur)}
+              formatAdminCurrency={formatAdminCurrency}
+              formatAdminDate={formatAdminDate}
+              getCheckoutProviderLabel={getCheckoutProviderLabel}
+            />
 
             <section className="admin-section" id="branding">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Branding</p>
-                <h2>Nombre, home y logos</h2>
-              </div>
+              <AdminSectionHeading eyebrow="Branding" title="Nombre, home y logos" />
 
-              <div className="admin-card admin-grid admin-grid--2">
-                <AdminField label="Nombre corto">
-                  <input
-                    value={siteConfig.brandName}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({ ...current, brandName: event.currentTarget.value }))
-                    }
-                  />
-                </AdminField>
+              <div className="admin-editor-layout">
+                <div className="admin-editor-column admin-editor-column--preview">
+                  <AdminPreviewCard
+                    eyebrow="Live preview"
+                    title="Identidad de marca"
+                    description="Así se ve ahora mismo la cabecera principal y el home hero con los textos y logos actuales."
+                    className="admin-preview-card--hero"
+                  >
+                    <div className="admin-brand-preview">
+                      <div className="admin-brand-preview__bar">
+                        <div className="admin-brand-preview__logos">
+                          {hasOptionalMedia(siteConfig.brandAssets.headerLogoSrc) ? (
+                            <SafeImage
+                              className="admin-brand-preview__header-logo"
+                              src={siteConfig.brandAssets.headerLogoSrc}
+                              alt={siteConfig.brandAssets.headerLogoAlt}
+                            />
+                          ) : (
+                            <span className="admin-brand-preview__fallback">{siteConfig.brandName}</span>
+                          )}
+                          {hasOptionalMedia(siteConfig.brandAssets.headerPartnerLogoSrc) ? (
+                            <SafeImage
+                              className="admin-brand-preview__partner-logo"
+                              src={siteConfig.brandAssets.headerPartnerLogoSrc}
+                              alt={siteConfig.brandAssets.headerPartnerLogoAlt}
+                            />
+                          ) : null}
+                        </div>
+                        <span className="admin-pill">{siteConfig.studioName}</span>
+                      </div>
 
-                <AdminField label="Nombre completo">
-                  <input
-                    value={siteConfig.studioName}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({ ...current, studioName: event.currentTarget.value }))
-                    }
-                  />
-                </AdminField>
+                      <div className="admin-brand-preview__hero-copy">
+                        <p className="admin-section__eyebrow">Home hero</p>
+                        <h3>{heroHeadline || siteConfig.brandName}</h3>
+                        <p>{siteConfig.homeHero.description || 'Añade una descripción principal para la portada.'}</p>
+                      </div>
 
-                <AdminField label="Título home, inicio">
-                  <input
-                    value={siteConfig.homeHero.titlePrefix}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, titlePrefix: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <div className="admin-brand-preview__actions">
+                        <span>{siteConfig.homeHero.primaryCtaLabel || 'CTA principal'}</span>
+                        <span>{siteConfig.homeHero.secondaryCtaLabel || 'CTA secundario'}</span>
+                      </div>
 
-                <AdminField label="Título home, resaltado">
-                  <input
-                    value={siteConfig.homeHero.titleHighlight}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, titleHighlight: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <div className="admin-brand-preview__logos-grid">
+                        {hasOptionalMedia(siteConfig.brandAssets.heroBigLogoSrc) ? (
+                          <SafeImage
+                            className="admin-brand-preview__floating admin-brand-preview__floating--big"
+                            src={siteConfig.brandAssets.heroBigLogoSrc}
+                            alt="Logo hero grande"
+                          />
+                        ) : null}
+                        {hasOptionalMedia(siteConfig.brandAssets.heroMediumLogoSrc) ? (
+                          <SafeImage
+                            className="admin-brand-preview__floating admin-brand-preview__floating--medium"
+                            src={siteConfig.brandAssets.heroMediumLogoSrc}
+                            alt="Logo hero medio"
+                          />
+                        ) : null}
+                        {hasOptionalMedia(siteConfig.brandAssets.heroSmallLogoSrc) ? (
+                          <SafeImage
+                            className="admin-brand-preview__floating admin-brand-preview__floating--small"
+                            src={siteConfig.brandAssets.heroSmallLogoSrc}
+                            alt="Logo hero pequeño"
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  </AdminPreviewCard>
+                </div>
 
-                <AdminField label="Título home, final">
-                  <input
-                    value={siteConfig.homeHero.titleSuffix}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, titleSuffix: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                <div className="admin-editor-column">
+                  <AdminFormCard
+                    eyebrow="Identidad"
+                    title="Nombre y naming"
+                    description="Controla el nombre corto de la tienda y el nombre largo visible en panel y créditos."
+                    collapsible
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminField label="Nombre corto">
+                        <input
+                          value={siteConfig.brandName}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({ ...current, brandName: event.currentTarget.value }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Descripción home">
-                  <textarea
-                    value={siteConfig.homeHero.description}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, description: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Nombre completo">
+                        <input
+                          value={siteConfig.studioName}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({ ...current, studioName: event.currentTarget.value }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+                  </AdminFormCard>
 
-                <AdminField label="CTA principal">
-                  <input
-                    value={siteConfig.homeHero.primaryCtaLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, primaryCtaLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                  <AdminFormCard
+                    eyebrow="Theme"
+                    title="Color principal y accent"
+                    description="Estos colores alimentan las variables principales del storefront sin tocar el CSS a mano."
+                    collapsible
+                    defaultOpen={false}
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminField label="Primary">
+                        <input
+                          type="color"
+                          value={siteConfig.theme.primaryColor}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              theme: { ...current.theme, primaryColor: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Ruta CTA principal">
-                  <input
-                    value={siteConfig.homeHero.primaryCtaHref}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, primaryCtaHref: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Accent">
+                        <input
+                          type="color"
+                          value={siteConfig.theme.accentColor}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              theme: { ...current.theme, accentColor: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
 
-                <AdminField label="CTA secundario">
-                  <input
-                    value={siteConfig.homeHero.secondaryCtaLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, secondaryCtaLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                    <div className="admin-chip-row">
+                      <span className="admin-pill">Primary {siteConfig.theme.primaryColor}</span>
+                      <span className="admin-pill">Accent {siteConfig.theme.accentColor}</span>
+                    </div>
+                  </AdminFormCard>
 
-                <AdminField label="URL CTA secundario">
-                  <input
-                    value={siteConfig.homeHero.secondaryCtaHref}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        homeHero: { ...current.homeHero, secondaryCtaHref: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                  <AdminFormCard
+                    eyebrow="Hero"
+                    title="Copy principal y CTAs"
+                    description="Ajusta los tres tramos del titular y los botones principales del hero sin tocar la maquetación."
+                    collapsible
+                    defaultOpen={false}
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminField label="Título home, inicio">
+                        <input
+                          value={siteConfig.homeHero.titlePrefix}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, titlePrefix: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Logo header">
-                  <input
-                    value={siteConfig.brandAssets.headerLogoSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        brandAssets: { ...current.brandAssets, headerLogoSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Título home, resaltado">
+                        <input
+                          value={siteConfig.homeHero.titleHighlight}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, titleHighlight: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Logo footer">
-                  <input
-                    value={siteConfig.brandAssets.footerLogoSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        brandAssets: { ...current.brandAssets, footerLogoSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Título home, final">
+                        <input
+                          value={siteConfig.homeHero.titleSuffix}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, titleSuffix: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Logo partner">
-                  <input
-                    value={siteConfig.brandAssets.headerPartnerLogoSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        brandAssets: {
-                          ...current.brandAssets,
-                          headerPartnerLogoSrc: event.currentTarget.value,
-                          footerPartnerLogoSrc: event.currentTarget.value,
-                        },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Descripción home">
+                        <textarea
+                          value={siteConfig.homeHero.description}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, description: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Decoración footer">
-                  <input
-                    value={siteConfig.brandAssets.footerDecorationSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        brandAssets: { ...current.brandAssets, footerDecorationSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="CTA principal">
+                        <input
+                          value={siteConfig.homeHero.primaryCtaLabel}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, primaryCtaLabel: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Logo rojo grande">
-                  <input
-                    value={siteConfig.brandAssets.heroBigLogoSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        brandAssets: { ...current.brandAssets, heroBigLogoSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Ruta CTA principal">
+                        <input
+                          value={siteConfig.homeHero.primaryCtaHref}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, primaryCtaHref: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Logo rojo medio">
-                  <input
-                    value={siteConfig.brandAssets.heroMediumLogoSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        brandAssets: { ...current.brandAssets, heroMediumLogoSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="CTA secundario">
+                        <input
+                          value={siteConfig.homeHero.secondaryCtaLabel}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, secondaryCtaLabel: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Logo rojo pequeño">
-                  <input
-                    value={siteConfig.brandAssets.heroSmallLogoSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        brandAssets: { ...current.brandAssets, heroSmallLogoSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="URL CTA secundario">
+                        <input
+                          value={siteConfig.homeHero.secondaryCtaHref}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              homeHero: { ...current.homeHero, secondaryCtaHref: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+                  </AdminFormCard>
+
+                  <AdminFormCard
+                    eyebrow="Media"
+                    title="Logotipos y assets"
+                    description="Deja la URL vacía si no quieres mostrar el recurso. La tienda ocultará el bloque automáticamente."
+                    collapsible
+                    defaultOpen={false}
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminField label="Logo header">
+                        <input
+                          value={siteConfig.brandAssets.headerLogoSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              brandAssets: { ...current.brandAssets, headerLogoSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Logo footer">
+                        <input
+                          value={siteConfig.brandAssets.footerLogoSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              brandAssets: { ...current.brandAssets, footerLogoSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Logo partner">
+                        <input
+                          value={siteConfig.brandAssets.headerPartnerLogoSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              brandAssets: {
+                                ...current.brandAssets,
+                                headerPartnerLogoSrc: event.currentTarget.value,
+                                footerPartnerLogoSrc: event.currentTarget.value,
+                              },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Decoración footer">
+                        <input
+                          value={siteConfig.brandAssets.footerDecorationSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              brandAssets: { ...current.brandAssets, footerDecorationSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Logo rojo grande">
+                        <input
+                          value={siteConfig.brandAssets.heroBigLogoSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              brandAssets: { ...current.brandAssets, heroBigLogoSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Logo rojo medio">
+                        <input
+                          value={siteConfig.brandAssets.heroMediumLogoSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              brandAssets: { ...current.brandAssets, heroMediumLogoSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Logo rojo pequeño">
+                        <input
+                          value={siteConfig.brandAssets.heroSmallLogoSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              brandAssets: { ...current.brandAssets, heroSmallLogoSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+                  </AdminFormCard>
+                </div>
               </div>
             </section>
 
             <section className="admin-section" id="discount">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Descuento</p>
-                <h2>Banner y código</h2>
-              </div>
+              <AdminSectionHeading eyebrow="Descuento" title="Banner y código" />
 
-              <div className="admin-card admin-grid admin-grid--2">
-                <AdminToggle
-                  label="Mostrar banner"
-                  checked={siteConfig.discountBanner.enabled}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      discountBanner: { ...current.discountBanner, enabled: checked },
-                    }))
-                  }
-                />
+              <div className="admin-editor-layout">
+                <div className="admin-editor-column admin-editor-column--preview">
+                  <AdminPreviewCard
+                    eyebrow="Campaign preview"
+                    title="Banner promocional"
+                    description="Vista previa compacta del bloque de descuento. Si los assets están vacíos, el panel los oculta."
+                    className="admin-preview-card--banner"
+                  >
+                    <div className={`admin-banner-preview ${siteConfig.discountBanner.enabled ? 'is-active' : 'is-muted'}`}>
+                      {hasOptionalMedia(siteConfig.discountBanner.backgroundImageSrc) ? (
+                        <SafeImage
+                          className="admin-banner-preview__background"
+                          src={siteConfig.discountBanner.backgroundImageSrc}
+                          alt="Banner background"
+                        />
+                      ) : null}
+                      <div className="admin-banner-preview__overlay" />
+                      <div className="admin-banner-preview__content">
+                        {hasOptionalMedia(siteConfig.discountBanner.logoSrc) ? (
+                          <SafeImage
+                            className="admin-banner-preview__logo"
+                            src={siteConfig.discountBanner.logoSrc}
+                            alt={siteConfig.discountBanner.title}
+                          />
+                        ) : null}
+                        <p className="admin-section__eyebrow">
+                          {siteConfig.discountBanner.enabled ? 'Promotion enabled' : 'Promotion disabled'}
+                        </p>
+                        <h3>{siteConfig.discountBanner.title || 'Título de campaña'}</h3>
+                        <p>{siteConfig.discountBanner.description || 'Añade una descripción corta para el banner.'}</p>
+                        <div className="admin-banner-preview__meta">
+                          <span>{siteConfig.discountBanner.code || 'SIN-CODIGO'}</span>
+                          <span>{siteConfig.discountBanner.endAt || 'Sin fecha final'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </AdminPreviewCard>
+                </div>
 
-                <AdminField label="Fecha final countdown">
-                  <input
-                    value={siteConfig.discountBanner.endAt}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        discountBanner: { ...current.discountBanner, endAt: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                <div className="admin-editor-column">
+                  <AdminFormCard
+                    eyebrow="Switch"
+                    title="Estado y ventana de campaña"
+                    description="Activa o apaga la promoción y define el cierre del countdown."
+                    collapsible
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminToggle
+                        label="Mostrar banner"
+                        checked={siteConfig.discountBanner.enabled}
+                        onChange={(checked) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            discountBanner: { ...current.discountBanner, enabled: checked },
+                          }))
+                        }
+                      />
 
-                <AdminField label="Título banner">
-                  <input
-                    value={siteConfig.discountBanner.title}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        discountBanner: { ...current.discountBanner, title: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Fecha final countdown">
+                        <input
+                          value={siteConfig.discountBanner.endAt}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              discountBanner: { ...current.discountBanner, endAt: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Descripción banner">
-                  <input
-                    value={siteConfig.discountBanner.description}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        discountBanner: { ...current.discountBanner, description: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Código">
+                        <input
+                          value={siteConfig.discountBanner.code}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              discountBanner: { ...current.discountBanner, code: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+                  </AdminFormCard>
 
-                <AdminField label="Código">
-                  <input
-                    value={siteConfig.discountBanner.code}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        discountBanner: { ...current.discountBanner, code: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                  <AdminFormCard
+                    eyebrow="Copy y media"
+                    title="Texto e imagen del banner"
+                    description="Edita el copy principal y los assets opcionales sin romper el layout si se quedan vacíos."
+                    collapsible
+                    defaultOpen={false}
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminField label="Título banner">
+                        <input
+                          value={siteConfig.discountBanner.title}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              discountBanner: { ...current.discountBanner, title: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Logo banner">
-                  <input
-                    value={siteConfig.discountBanner.logoSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        discountBanner: { ...current.discountBanner, logoSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Descripción banner">
+                        <input
+                          value={siteConfig.discountBanner.description}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              discountBanner: { ...current.discountBanner, description: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
 
-                <AdminField label="Imagen fondo banner">
-                  <input
-                    value={siteConfig.discountBanner.backgroundImageSrc}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        discountBanner: { ...current.discountBanner, backgroundImageSrc: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
+                      <AdminField label="Logo banner">
+                        <input
+                          value={siteConfig.discountBanner.logoSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              discountBanner: { ...current.discountBanner, logoSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Imagen fondo banner">
+                        <input
+                          value={siteConfig.discountBanner.backgroundImageSrc}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              discountBanner: { ...current.discountBanner, backgroundImageSrc: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+                  </AdminFormCard>
+                </div>
               </div>
             </section>
 
             <section className="admin-section" id="navigation">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Navegación</p>
-                <h2>Navbar, footer y enlaces</h2>
-              </div>
+              <AdminSectionHeading eyebrow="Navegación" title="Navbar, footer y enlaces" />
 
-              <div className="admin-card admin-grid admin-grid--2">
-                <AdminField label="Texto Home navbar">
-                  <input
-                    value={siteConfig.header.homeLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        header: { ...current.header, homeLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto dropdown categorías">
-                  <input
-                    value={siteConfig.header.categoryMenuLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        header: { ...current.header, categoryMenuLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminToggle
-                  label="Mostrar dropdown categorías"
-                  checked={siteConfig.header.showCategoryMenu}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      header: { ...current.header, showCategoryMenu: checked },
-                    }))
-                  }
-                />
-
-                <AdminToggle
-                  label="Mostrar link de documentación"
-                  checked={siteConfig.header.showDocumentationLink}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      header: { ...current.header, showDocumentationLink: checked },
-                    }))
-                  }
-                />
-
-                <AdminField label="Texto documentación">
-                  <input
-                    value={siteConfig.header.documentationLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        header: { ...current.header, documentationLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="URL documentación">
-                  <input
-                    value={siteConfig.header.documentationHref}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        header: { ...current.header, documentationHref: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto botón login">
-                  <input
-                    value={siteConfig.header.guestLoginLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        header: { ...current.header, guestLoginLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminToggle
-                  label="Mostrar Powered by"
-                  checked={siteConfig.footer.showPoweredBy}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      footer: { ...current.footer, showPoweredBy: checked },
-                    }))
-                  }
-                />
-
-                <AdminField label="Texto Powered by">
-                  <input
-                    value={siteConfig.footer.poweredByLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        footer: { ...current.footer, poweredByLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto legal footer">
-                  <textarea
-                    value={siteConfig.footer.legalText}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        footer: { ...current.footer, legalText: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-              </div>
-
-              <div className="admin-card">
-                <div className="admin-card__title-row">
-                  <h3>Redes cabecera</h3>
-                  <button
-                    className="admin-button admin-button--small"
-                    type="button"
-                    onClick={() =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        header: {
-                          ...current.header,
-                          socialLinks: [
-                            ...current.header.socialLinks,
-                            { label: 'New Link', href: 'https://example.com', icon: 'fa-solid fa-link' },
-                          ],
-                        },
-                      }))
-                    }
+              <div className="admin-editor-layout">
+                <div className="admin-editor-column admin-editor-column--preview">
+                  <AdminPreviewCard
+                    eyebrow="Navigation preview"
+                    title="Header público"
+                    description="Resumen limpio de la navegación principal, enlaces secundarios y CTA de acceso."
                   >
-                    Añadir red
-                  </button>
+                    <div className="admin-nav-preview">
+                      <div className="admin-nav-preview__bar">
+                        <span>{siteConfig.header.homeLabel}</span>
+                        {siteConfig.header.showCategoryMenu ? (
+                          <span>{siteConfig.header.categoryMenuLabel}</span>
+                        ) : null}
+                        {siteConfig.header.showDocumentationLink ? (
+                          <span>{siteConfig.header.documentationLabel}</span>
+                        ) : null}
+                      </div>
+                      <div className="admin-chip-row">
+                        {siteConfig.header.socialLinks.map((link) => (
+                          <span key={`${link.label}-${link.href}`}>{link.label}</span>
+                        ))}
+                      </div>
+                      <div className="admin-nav-preview__footer-line">
+                        <span>{siteConfig.header.guestLoginLabel}</span>
+                      </div>
+                    </div>
+                  </AdminPreviewCard>
+
+                  <AdminPreviewCard
+                    eyebrow="Footer preview"
+                    title="Footer y legal"
+                    description="Columnas activas, enlaces totales y copy legal visible al final de la tienda."
+                  >
+                    <div className="admin-footer-preview">
+                      <div className="admin-key-metrics">
+                        <div>
+                          <span>Columnas</span>
+                          <strong>{siteConfig.footer.columns.length}</strong>
+                        </div>
+                        <div>
+                          <span>Enlaces</span>
+                          <strong>{footerLinkCount}</strong>
+                        </div>
+                        <div>
+                          <span>Powered by</span>
+                          <strong>{siteConfig.footer.showPoweredBy ? 'ON' : 'OFF'}</strong>
+                        </div>
+                      </div>
+                      <p className="admin-footer-preview__legal">
+                        {siteConfig.footer.legalText || 'Texto legal del footer.'}
+                      </p>
+                    </div>
+                  </AdminPreviewCard>
                 </div>
 
-                <div className="admin-stack">
-                  {siteConfig.header.socialLinks.map((link, index) => (
-                    <div className="admin-inline-card" key={`${link.label}-${index}`}>
-                      <input value={link.label} onChange={(event) => updateHeaderSocialLink(index, 'label', event.currentTarget.value)} />
-                      <input value={link.href} onChange={(event) => updateHeaderSocialLink(index, 'href', event.currentTarget.value)} />
-                      <input value={link.icon} onChange={(event) => updateHeaderSocialLink(index, 'icon', event.currentTarget.value)} />
+                <div className="admin-editor-column">
+                  <AdminFormCard
+                    eyebrow="Header"
+                    title="Navbar y CTA"
+                    description="Controla el copy principal de la cabecera sin tocar el diseño del storefront."
+                    collapsible
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminField label="Texto Home navbar">
+                        <input
+                          value={siteConfig.header.homeLabel}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              header: { ...current.header, homeLabel: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Texto dropdown categorías">
+                        <input
+                          value={siteConfig.header.categoryMenuLabel}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              header: { ...current.header, categoryMenuLabel: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminToggle
+                        label="Mostrar dropdown categorías"
+                        checked={siteConfig.header.showCategoryMenu}
+                        onChange={(checked) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            header: { ...current.header, showCategoryMenu: checked },
+                          }))
+                        }
+                      />
+
+                      <AdminToggle
+                        label="Mostrar link de documentación"
+                        checked={siteConfig.header.showDocumentationLink}
+                        onChange={(checked) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            header: { ...current.header, showDocumentationLink: checked },
+                          }))
+                        }
+                      />
+
+                      <AdminField label="Texto documentación">
+                        <input
+                          value={siteConfig.header.documentationLabel}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              header: { ...current.header, documentationLabel: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="URL documentación">
+                        <input
+                          value={siteConfig.header.documentationHref}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              header: { ...current.header, documentationHref: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+
+                      <AdminField label="Texto botón login">
+                        <input
+                          value={siteConfig.header.guestLoginLabel}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              header: { ...current.header, guestLoginLabel: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+                  </AdminFormCard>
+
+                  <AdminFormCard
+                    eyebrow="Social links"
+                    title="Redes en cabecera"
+                    description="Cada fila representa un enlace social o externo visible en la parte superior."
+                    collapsible
+                    defaultOpen={false}
+                    actions={(
                       <button
-                        className="admin-button admin-button--danger admin-button--small"
+                        className="admin-button admin-button--small"
                         type="button"
                         onClick={() =>
                           updateSiteConfig((current) => ({
                             ...current,
                             header: {
                               ...current.header,
-                              socialLinks: current.header.socialLinks.filter((_, currentIndex) => currentIndex !== index),
+                              socialLinks: [
+                                ...current.header.socialLinks,
+                                { label: 'New Link', href: 'https://example.com', icon: 'fa-solid fa-link' },
+                              ],
                             },
                           }))
                         }
                       >
-                        Quitar
+                        Añadir red
                       </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="admin-card">
-                <div className="admin-card__title-row">
-                  <h3>Columnas footer</h3>
-                  <button
-                    className="admin-button admin-button--small"
-                    type="button"
-                    onClick={() =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        footer: {
-                          ...current.footer,
-                          columns: [
-                            ...current.footer.columns,
-                            { id: `footer-column-${Date.now()}`, title: 'New Column', links: [] },
-                          ],
-                        },
-                      }))
-                    }
+                    )}
                   >
-                    Añadir columna
-                  </button>
-                </div>
+                    <div className="admin-stack">
+                      {siteConfig.header.socialLinks.map((link, index) => (
+                        <div className="admin-inline-card admin-inline-card--link-row" key={`${link.label}-${index}`}>
+                          <input value={link.label} onChange={(event) => updateHeaderSocialLink(index, 'label', event.currentTarget.value)} />
+                          <input value={link.href} onChange={(event) => updateHeaderSocialLink(index, 'href', event.currentTarget.value)} />
+                          <input value={link.icon} onChange={(event) => updateHeaderSocialLink(index, 'icon', event.currentTarget.value)} />
+                          <button
+                            className="admin-button admin-button--danger admin-button--small"
+                            type="button"
+                            onClick={() =>
+                              updateSiteConfig((current) => ({
+                                ...current,
+                                header: {
+                                  ...current.header,
+                                  socialLinks: current.header.socialLinks.filter((_, currentIndex) => currentIndex !== index),
+                                },
+                              }))
+                            }
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </AdminFormCard>
 
-                <div className="admin-stack">
-                  {siteConfig.footer.columns.map((column, columnIndex) => (
-                    <div className="admin-group-card" key={column.id}>
-                      <div className="admin-card__title-row">
+                  <AdminFormCard
+                    eyebrow="Footer"
+                    title="Footer, columnas y legal"
+                    description="Edita texto legal, etiqueta powered by y la estructura de columnas del footer."
+                    collapsible
+                    defaultOpen={false}
+                    actions={(
+                      <button
+                        className="admin-button admin-button--small"
+                        type="button"
+                        onClick={() =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            footer: {
+                              ...current.footer,
+                              columns: [
+                                ...current.footer.columns,
+                                { id: `footer-column-${Date.now()}`, title: 'New Column', links: [] },
+                              ],
+                            },
+                          }))
+                        }
+                      >
+                        Añadir columna
+                      </button>
+                    )}
+                  >
+                    <div className="admin-grid admin-grid--2">
+                      <AdminToggle
+                        label="Mostrar Powered by"
+                        checked={siteConfig.footer.showPoweredBy}
+                        onChange={(checked) =>
+                          updateSiteConfig((current) => ({
+                            ...current,
+                            footer: { ...current.footer, showPoweredBy: checked },
+                          }))
+                        }
+                      />
+
+                      <AdminField label="Texto Powered by">
                         <input
-                          value={column.title}
+                          value={siteConfig.footer.poweredByLabel}
                           onChange={(event) =>
-                            updateFooterColumn(columnIndex, { ...column, title: event.currentTarget.value })
-                          }
-                        />
-                        <button
-                          className="admin-button admin-button--danger admin-button--small"
-                          type="button"
-                          onClick={() =>
                             updateSiteConfig((current) => ({
                               ...current,
-                              footer: {
-                                ...current.footer,
-                                columns: current.footer.columns.filter((entry) => entry.id !== column.id),
-                              },
+                              footer: { ...current.footer, poweredByLabel: event.currentTarget.value },
                             }))
                           }
-                        >
-                          Quitar columna
-                        </button>
-                      </div>
+                        />
+                      </AdminField>
 
-                      <div className="admin-stack">
-                        {column.links.map((link, linkIndex) => (
-                          <div className="admin-inline-card" key={`${link.label}-${linkIndex}`}>
+                      <AdminField label="Texto legal footer">
+                        <textarea
+                          value={siteConfig.footer.legalText}
+                          onChange={(event) =>
+                            updateSiteConfig((current) => ({
+                              ...current,
+                              footer: { ...current.footer, legalText: event.currentTarget.value },
+                            }))
+                          }
+                        />
+                      </AdminField>
+                    </div>
+
+                    <div className="admin-stack">
+                      {siteConfig.footer.columns.map((column, columnIndex) => (
+                        <div className="admin-group-card admin-group-card--editor" key={column.id}>
+                          <div className="admin-card__title-row admin-card__title-row--inline-input">
                             <input
-                              value={link.label}
+                              value={column.title}
                               onChange={(event) =>
-                                updateFooterLink(columnIndex, linkIndex, {
-                                  ...link,
-                                  label: event.currentTarget.value,
-                                })
-                              }
-                            />
-                            <input
-                              value={link.href}
-                              onChange={(event) =>
-                                updateFooterLink(columnIndex, linkIndex, {
-                                  ...link,
-                                  href: event.currentTarget.value,
-                                })
+                                updateFooterColumn(columnIndex, { ...column, title: event.currentTarget.value })
                               }
                             />
                             <button
                               className="admin-button admin-button--danger admin-button--small"
                               type="button"
                               onClick={() =>
+                                updateSiteConfig((current) => ({
+                                  ...current,
+                                  footer: {
+                                    ...current.footer,
+                                    columns: current.footer.columns.filter((entry) => entry.id !== column.id),
+                                  },
+                                }))
+                              }
+                            >
+                              Quitar columna
+                            </button>
+                          </div>
+
+                          <div className="admin-stack">
+                            {column.links.map((link, linkIndex) => (
+                              <div className="admin-inline-card admin-inline-card--footer-link" key={`${link.label}-${linkIndex}`}>
+                                <input
+                                  value={link.label}
+                                  onChange={(event) =>
+                                    updateFooterLink(columnIndex, linkIndex, {
+                                      ...link,
+                                      label: event.currentTarget.value,
+                                    })
+                                  }
+                                />
+                                <input
+                                  value={link.href}
+                                  onChange={(event) =>
+                                    updateFooterLink(columnIndex, linkIndex, {
+                                      ...link,
+                                      href: event.currentTarget.value,
+                                    })
+                                  }
+                                />
+                                <button
+                                  className="admin-button admin-button--danger admin-button--small"
+                                  type="button"
+                                  onClick={() =>
+                                    updateFooterColumn(columnIndex, {
+                                      ...column,
+                                      links: column.links.filter((_, currentIndex) => currentIndex !== linkIndex),
+                                    })
+                                  }
+                                >
+                                  Quitar
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              className="admin-button admin-button--small"
+                              type="button"
+                              onClick={() =>
                                 updateFooterColumn(columnIndex, {
                                   ...column,
-                                  links: column.links.filter((_, currentIndex) => currentIndex !== linkIndex),
+                                  links: [...column.links, { label: 'New Link', href: '/' }],
                                 })
                               }
                             >
-                              Quitar
+                              Añadir enlace
                             </button>
                           </div>
-                        ))}
-                        <button
-                          className="admin-button admin-button--small"
-                          type="button"
-                          onClick={() =>
-                            updateFooterColumn(columnIndex, {
-                              ...column,
-                              links: [...column.links, { label: 'New Link', href: '/' }],
-                            })
-                          }
-                        >
-                          Añadir enlace
-                        </button>
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </AdminFormCard>
                 </div>
               </div>
             </section>
 
             <section className="admin-section" id="categories">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Categorías</p>
-                <h2>Texto, orden y visibilidad</h2>
-              </div>
+              <AdminSectionHeading eyebrow="Categorías" title="Texto, orden y visibilidad" />
 
-              <div className="admin-card">
-                <div className="admin-card__title-row">
-                  <h3>Listado</h3>
-                  <button className="admin-button admin-button--small" type="button" onClick={() => upsertCategory(createEmptyCategory())}>
-                    Añadir categoría
+              <AdminFormCard
+                eyebrow="Category manager"
+                title="Listado de categorias"
+                description="Gestiona el catalogo desde tarjetas compactas. El formulario completo solo aparece cuando editas una categoria."
+                actions={(
+                  <button className="admin-button admin-button--small admin-button--primary" type="button" onClick={() => openCategoryEditor()}>
+                    Añadir categoria
                   </button>
+                )}
+              >
+                <div className="admin-key-metrics">
+                  <div>
+                    <span>Total</span>
+                    <strong>{categories.length}</strong>
+                  </div>
+                  <div>
+                    <span>Visibles</span>
+                    <strong>{visibleCategoriesCount}</strong>
+                  </div>
+                  <div>
+                    <span>Productos</span>
+                    <strong>{products.length}</strong>
+                  </div>
                 </div>
 
-                <div className="admin-stack">
-                  {categories.map((category) => (
-                    <div className="admin-group-card" key={category.id}>
-                      <div className="admin-grid admin-grid--2">
-                        <AdminField label="ID / slug">
-                          <input
-                            value={category.id}
-                            onChange={(event) => renameCategoryId(category.id, slugify(event.currentTarget.value))}
-                          />
-                        </AdminField>
-
-                        <AdminField label="Nombre">
-                          <input
-                            value={category.label}
-                            onChange={(event) => upsertCategory({ ...category, label: event.currentTarget.value })}
-                          />
-                        </AdminField>
-
-                        <AdminField label="Heading página">
-                          <input
-                            value={category.heading}
-                            onChange={(event) => upsertCategory({ ...category, heading: event.currentTarget.value })}
-                          />
-                        </AdminField>
-
-                        <AdminField label="Descripción">
-                          <textarea
-                            value={category.description}
-                            onChange={(event) => upsertCategory({ ...category, description: event.currentTarget.value })}
-                          />
-                        </AdminField>
+                <div className="admin-category-grid">
+                  {categoryPreviewItems.map((category) => (
+                    <article className="admin-category-card" key={category.id}>
+                      <div className="admin-category-card__head">
+                        <div className="admin-category-card__copy">
+                          <strong>{category.label}</strong>
+                          <span>/{category.id}</span>
+                          <p>{category.description || category.heading || 'Sin descripcion adicional.'}</p>
+                        </div>
+                        <div className="admin-chip-row">
+                          <span className="admin-pill">{category.totalProducts} productos</span>
+                          <span className="admin-pill">
+                            {category.showInNavigation !== false ? 'Visible' : 'Oculta'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="admin-row">
-                        <AdminToggle
-                          label="Mostrar en navbar"
-                          checked={category.showInNavigation !== false}
-                          onChange={(checked) => upsertCategory({ ...category, showInNavigation: checked })}
-                        />
+                      <div className="admin-category-card__actions">
+                        <button
+                          className="admin-button admin-button--small admin-button--primary"
+                          type="button"
+                          onClick={() => openCategoryEditor(category)}
+                        >
+                          Editar
+                        </button>
                         <button className="admin-button admin-button--small" type="button" onClick={() => moveCategory(category.id, 'up')}>
                           Subir
                         </button>
                         <button className="admin-button admin-button--small" type="button" onClick={() => moveCategory(category.id, 'down')}>
                           Bajar
                         </button>
-                        <button className="admin-button admin-button--danger admin-button--small" type="button" onClick={() => deleteCategory(category.id)}>
+                        <button
+                          className="admin-button admin-button--danger admin-button--small"
+                          type="button"
+                          onClick={() => deleteCategory(category.id)}
+                        >
                           Borrar
                         </button>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
-              </div>
+              </AdminFormCard>
+
+              {isCategoryEditorOpen ? (
+                <div
+                  className="admin-editor-drawer-scrim"
+                  onClick={(event) => {
+                    if (event.target === event.currentTarget) {
+                      closeCategoryEditor();
+                    }
+                  }}
+                >
+                  <aside
+                    className="admin-editor-drawer"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Editor de categoria"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="admin-editor-drawer__header">
+                      <div>
+                        <p className="admin-section__eyebrow">Category editor</p>
+                        <h3>{editingCategorySourceId ? 'Editar categoria' : 'Nueva categoria'}</h3>
+                        <p className="admin-muted-text">
+                          Cambia nombre, slug, copy y visibilidad sin tener todos los campos abiertos en la lista.
+                        </p>
+                      </div>
+
+                      <div className="admin-row admin-row--wrap">
+                        {categorySavedMessage ? <span className="admin-pill">{categorySavedMessage}</span> : null}
+                        <button className="admin-utility-button" type="button" onClick={closeCategoryEditor} aria-label="Cerrar editor">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="admin-editor-drawer__body">
+                      <div className="admin-grid admin-grid--2">
+                        <AdminField label="ID / slug">
+                          <input
+                            value={categoryDraft.id}
+                            onChange={(event) =>
+                              setCategoryDraft((current) => ({
+                                ...current,
+                                id: slugify(event.currentTarget.value),
+                              }))
+                            }
+                          />
+                        </AdminField>
+
+                        <AdminField label="Nombre">
+                          <input
+                            value={categoryDraft.label}
+                            onChange={(event) =>
+                              setCategoryDraft((current) => ({
+                                ...current,
+                                label: event.currentTarget.value,
+                              }))
+                            }
+                          />
+                        </AdminField>
+
+                        <AdminField label="Heading pagina">
+                          <input
+                            value={categoryDraft.heading}
+                            onChange={(event) =>
+                              setCategoryDraft((current) => ({
+                                ...current,
+                                heading: event.currentTarget.value,
+                              }))
+                            }
+                          />
+                        </AdminField>
+
+                        <AdminField label="URL manual" hint="Opcional. Si lo dejas vacio, la tienda usa la ruta generada por categoria.">
+                          <input
+                            value={categoryDraft.url}
+                            onChange={(event) =>
+                              setCategoryDraft((current) => ({
+                                ...current,
+                                url: event.currentTarget.value,
+                              }))
+                            }
+                          />
+                        </AdminField>
+
+                        <div className="admin-grid admin-grid--2" style={{ gridColumn: '1 / -1' }}>
+                          <AdminField label="Descripcion">
+                            <textarea
+                              value={categoryDraft.description}
+                              onChange={(event) =>
+                                setCategoryDraft((current) => ({
+                                  ...current,
+                                  description: event.currentTarget.value,
+                                }))
+                              }
+                            />
+                          </AdminField>
+
+                          <div className="admin-stack">
+                            <AdminToggle
+                              label="Mostrar en navbar"
+                              checked={categoryDraft.showInNavigation !== false}
+                              onChange={(checked) =>
+                                setCategoryDraft((current) => ({
+                                  ...current,
+                                  showInNavigation: checked,
+                                }))
+                              }
+                            />
+
+                            <div className="admin-detail-list">
+                              <div>
+                                <span>Productos enlazados</span>
+                                <strong>
+                                  {products.filter((product) =>
+                                    product.categoryId === categoryDraft.id || product.categories.includes(categoryDraft.id),
+                                  ).length}
+                                </strong>
+                              </div>
+                              <div>
+                                <span>Estado</span>
+                                <strong>{categoryDraft.showInNavigation !== false ? 'Visible en navbar' : 'Oculta en navbar'}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="admin-editor-drawer__footer">
+                      <div className="admin-row admin-row--wrap">
+                        {editingCategorySourceId ? (
+                          <button className="admin-button admin-button--danger" type="button" onClick={deleteCategoryDraft}>
+                            Eliminar
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="admin-row admin-row--wrap">
+                        <button className="admin-button admin-button--ghost" type="button" onClick={closeCategoryEditor}>
+                          Cancelar
+                        </button>
+                        <button className="admin-button admin-button--primary" type="button" onClick={saveCategoryDraft}>
+                          Guardar categoria
+                        </button>
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+              ) : null}
             </section>
 
             <section className="admin-section" id="products">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Productos</p>
-                <h2>Alta, baja y destacados</h2>
-              </div>
+              <AdminSectionHeading eyebrow="Productos" title="Alta, baja y destacados" />
 
-              <div className="admin-grid admin-grid--products">
-                <div className="admin-card">
-                  <div className="admin-card__title-row">
-                    <h3>Listado</h3>
-                    <button
-                      className="admin-button admin-button--small"
-                      type="button"
-                      onClick={() => {
-                        setSelectedProductSlug(null);
-                        setProductDraft(emptyProductDraft(categories[0]?.id ?? ''));
-                      }}
-                    >
-                      Nuevo producto
-                    </button>
-                  </div>
-
-                  <div className="admin-stack admin-product-list">
-                    {products.map((product) => (
-                      <button
-                        className={`admin-product-list__item ${selectedProductSlug === product.slug ? 'is-active' : ''}`}
-                        key={product.slug}
-                        type="button"
-                        onClick={() => setSelectedProductSlug(product.slug)}
-                      >
-                        <div>
-                          <strong>{product.title}</strong>
-                          <span>{product.categoryLabel} · {product.checkoutProvider}</span>
+              <AdminFormCard
+                eyebrow="Product manager"
+                title="Listado de productos"
+                description="Primero ves tarjetas compactas. El formulario completo se abre solo al crear o editar un producto."
+                actions={(
+                  <button
+                    className="admin-button admin-button--small admin-button--primary"
+                    type="button"
+                    onClick={() => openProductEditor()}
+                  >
+                    Nuevo producto
+                  </button>
+                )}
+              >
+                <div className="admin-product-card-grid">
+                  {products.map((product) => (
+                    <article className="admin-product-card" key={product.slug}>
+                      <div className="admin-product-card__head">
+                        <div className="admin-product-card__identity">
+                          <div className="admin-product-card__media">
+                            {hasOptionalMedia(product.image) ? (
+                              <SafeImage className="admin-product-card__thumb" src={product.image} alt={product.title} />
+                            ) : (
+                              <div className="admin-product-card__placeholder">
+                                {product.title.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="admin-product-card__copy">
+                            <strong>{product.title}</strong>
+                            <span>/{product.slug}</span>
+                            <p>{product.excerpt || `${product.categoryLabel} · ${getCheckoutProviderLabel(product.checkoutProvider)}`}</p>
+                          </div>
                         </div>
-                        {featuredSlugs.includes(product.slug) ? <span className="admin-pill">Featured</span> : null}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="admin-card">
-                  <div className="admin-card__title-row">
-                    <h3>{selectedProductSlug ? 'Editar producto' : 'Crear producto'}</h3>
-                    {productSavedMessage ? <span className="admin-pill">{productSavedMessage}</span> : null}
-                  </div>
+                        <div className="admin-chip-row">
+                          <span className="admin-pill">{formatAdminCurrency(product.priceValue || 0)}</span>
+                          <span className="admin-pill">{getCheckoutProviderLabel(product.checkoutProvider)}</span>
+                          {featuredSlugs.includes(product.slug) ? <span className="admin-pill">Featured</span> : null}
+                        </div>
+                      </div>
 
-                  <div className="admin-grid admin-grid--2">
-                    <AdminField label="Título">
-                      <input value={productDraft.title} onChange={(event) => setProductDraft((current) => ({ ...current, title: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Slug">
-                      <input value={productDraft.slug} onChange={(event) => setProductDraft((current) => ({ ...current, slug: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Título completo">
-                      <input value={productDraft.fullTitle} onChange={(event) => setProductDraft((current) => ({ ...current, fullTitle: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Categoría principal">
-                      <select value={productDraft.categoryId} onChange={(event) => setProductDraft((current) => ({ ...current, categoryId: event.currentTarget.value }))}>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.label}
-                          </option>
-                        ))}
-                      </select>
-                    </AdminField>
-                    <AdminField label="Categorías" hint="Separadas por comas">
-                      <input value={productDraft.categoriesText} onChange={(event) => setProductDraft((current) => ({ ...current, categoriesText: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Imagen">
-                      <input value={productDraft.image} onChange={(event) => setProductDraft((current) => ({ ...current, image: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Precio">
-                      <input value={productDraft.priceValue} onChange={(event) => setProductDraft((current) => ({ ...current, priceValue: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Precio anterior">
-                      <input value={productDraft.oldPriceValue} onChange={(event) => setProductDraft((current) => ({ ...current, oldPriceValue: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Descuento visible">
-                      <input value={productDraft.discountText} onChange={(event) => setProductDraft((current) => ({ ...current, discountText: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Frameworks">
-                      <input value={productDraft.frameworksText} onChange={(event) => setProductDraft((current) => ({ ...current, frameworksText: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Extracto">
-                      <textarea value={productDraft.excerpt} onChange={(event) => setProductDraft((current) => ({ ...current, excerpt: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Features" hint="Uno por línea">
-                      <textarea value={productDraft.featuresText} onChange={(event) => setProductDraft((current) => ({ ...current, featuresText: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Descripción HTML">
-                      <textarea value={productDraft.descriptionHtml} onChange={(event) => setProductDraft((current) => ({ ...current, descriptionHtml: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Galería" hint="Una URL por línea">
-                      <textarea value={productDraft.galleryText} onChange={(event) => setProductDraft((current) => ({ ...current, galleryText: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Preview link">
-                      <input value={productDraft.previewLink} onChange={(event) => setProductDraft((current) => ({ ...current, previewLink: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Documentation link">
-                      <input value={productDraft.documentationLink} onChange={(event) => setProductDraft((current) => ({ ...current, documentationLink: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Open version id">
-                      <input value={productDraft.openVersionId} onChange={(event) => setProductDraft((current) => ({ ...current, openVersionId: event.currentTarget.value }))} />
-                    </AdminField>
-                    <AdminField label="Escrow version id">
-                      <input value={productDraft.escrowVersionId} onChange={(event) => setProductDraft((current) => ({ ...current, escrowVersionId: event.currentTarget.value }))} />
-                    </AdminField>
-                  </div>
-
-                  <div className="admin-inline-tip">
-                    <i className="fa-solid fa-credit-card" />
-                    <p>
-                      La configuración de gateway, identidad y referencias de checkout está ahora en la página
-                      {' '}
-                      <strong>Payments</strong>
-                      .
-                    </p>
-                  </div>
-
-                  <div className="admin-row admin-row--wrap">
-                    <button className="admin-button admin-button--primary" type="button" onClick={saveProduct}>
-                      Guardar producto
-                    </button>
-                    {selectedProductSlug ? (
-                      <>
-                        <button className="admin-button admin-button--small" type="button" onClick={() => moveProduct(selectedProductSlug, 'up')}>
+                      <div className="admin-category-card__actions">
+                        <button
+                          className="admin-button admin-button--small admin-button--primary"
+                          type="button"
+                          onClick={() => openProductEditor(product)}
+                        >
+                          Editar
+                        </button>
+                        <button className="admin-button admin-button--small" type="button" onClick={() => moveProduct(product.slug, 'up')}>
                           Subir
                         </button>
-                        <button className="admin-button admin-button--small" type="button" onClick={() => moveProduct(selectedProductSlug, 'down')}>
+                        <button className="admin-button admin-button--small" type="button" onClick={() => moveProduct(product.slug, 'down')}>
                           Bajar
                         </button>
-                        <button className="admin-button admin-button--small" type="button" onClick={() => toggleFeaturedProduct(selectedProductSlug)}>
-                          {featuredSlugs.includes(selectedProductSlug) ? 'Quitar featured' : 'Marcar featured'}
+                        <button className="admin-button admin-button--small" type="button" onClick={() => toggleFeaturedProduct(product.slug)}>
+                          {featuredSlugs.includes(product.slug) ? 'Quitar featured' : 'Marcar featured'}
                         </button>
                         <button
                           className="admin-button admin-button--danger admin-button--small"
                           type="button"
-                          onClick={() => {
-                            const currentIndex = products.findIndex((product) => product.slug === selectedProductSlug);
-                            const fallbackSlug =
-                              products[currentIndex + 1]?.slug ??
-                              products[currentIndex - 1]?.slug ??
-                              null;
-                            deleteProduct(selectedProductSlug);
-                            setSelectedProductSlug(fallbackSlug);
-                          }}
+                          onClick={() => deleteProduct(product.slug)}
                         >
                           Borrar
                         </button>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="admin-section" id="payments">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Payments</p>
-                <h2>Gateway y requisitos de compra</h2>
-              </div>
-
-              <div className="admin-grid admin-grid--stats">
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">Tebex</span>
-                  <strong>{paymentSummary.tebex}</strong>
-                  <p>Productos que salen por checkout oficial de Tebex.</p>
-                </div>
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">PayPal</span>
-                  <strong>{paymentSummary.paypal}</strong>
-                  <p>Productos preparados para Orders API y captura server-side.</p>
-                </div>
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">External</span>
-                  <strong>{paymentSummary.external}</strong>
-                  <p>Modelados, pero bloqueados hasta integrar confirmación real.</p>
-                </div>
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">Identity</span>
-                  <strong>{paymentSummary.requiresIdentity}</strong>
-                  <p>Productos que exigen identidad validada antes del pago.</p>
-                </div>
-              </div>
-
-              <div className="admin-grid admin-grid--products">
-                <div className="admin-card">
-                  <div className="admin-card__title-row">
-                    <h3>Productos y gateway</h3>
-                    <span className="admin-pill">{products.length} productos</span>
-                  </div>
-
-                  <div className="admin-stack admin-product-list">
-                    {products.map((product) => (
-                      <button
-                        className={`admin-product-list__item ${selectedProductSlug === product.slug ? 'is-active' : ''}`}
-                        key={`payments-${product.slug}`}
-                        type="button"
-                        onClick={() => setSelectedProductSlug(product.slug)}
-                      >
-                        <div>
-                          <strong>{product.title}</strong>
-                          <span>
-                            {getCheckoutProviderLabel(product.checkoutProvider)}
-                            {product.requiresIdentity ? ' · Identity required' : ''}
-                          </span>
-                        </div>
-                        <span className="admin-pill">{product.categoryLabel}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="admin-card">
-                  <div className="admin-card__title-row">
-                    <h3>Checkout del producto</h3>
-                    {selectedProductSlug ? (
-                      <span className="admin-pill">
-                        {getCheckoutProviderLabel(productDraft.checkoutProvider)}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {selectedProductSlug ? (
-                    <>
-                      {!canManageSensitiveSettings ? (
-                        <div className="admin-inline-tip">
-                          <i className="fa-solid fa-lock" />
-                          <p>
-                            Esta página es de <strong>solo lectura</strong> para roles que no son
-                            <strong> owner</strong>.
-                          </p>
-                        </div>
-                      ) : null}
-
-                      <div className="admin-grid admin-grid--2">
-                        <AdminField label="Proveedor checkout">
-                          <select
-                            value={productDraft.checkoutProvider}
-                            disabled={!canManageSensitiveSettings}
-                            onChange={(event) =>
-                              setProductDraft((current) => ({
-                                ...current,
-                                checkoutProvider: event.currentTarget.value as ProductCheckoutProvider,
-                              }))
-                            }
-                          >
-                            <option value="tebex">Tebex</option>
-                            <option value="paypal">PayPal</option>
-                            <option value="external">External</option>
-                          </select>
-                        </AdminField>
-
-                        <AdminToggle
-                          label="Requiere identidad validada"
-                          checked={productDraft.requiresIdentity}
-                          disabled={!canManageSensitiveSettings}
-                          onChange={(checked) =>
-                            setProductDraft((current) => ({
-                              ...current,
-                              requiresIdentity: checked,
-                            }))
-                          }
-                        />
-
-                        <AdminField label="Tebex package id" hint="Si está vacío, usa open/escrow version id como fallback">
-                          <input
-                            value={productDraft.tebexPackageId}
-                            disabled={!canManageSensitiveSettings}
-                            onChange={(event) =>
-                              setProductDraft((current) => ({
-                                ...current,
-                                tebexPackageId: event.currentTarget.value,
-                              }))
-                            }
-                          />
-                        </AdminField>
-
-                        <AdminField label="Tebex server id" hint="Opcional, útil si el package se liga a un server">
-                          <input
-                            value={productDraft.tebexServerId}
-                            disabled={!canManageSensitiveSettings}
-                            onChange={(event) =>
-                              setProductDraft((current) => ({
-                                ...current,
-                                tebexServerId: event.currentTarget.value,
-                              }))
-                            }
-                          />
-                        </AdminField>
-
-                        <AdminField label="External checkout URL" hint="Solo para productos external">
-                          <input
-                            value={productDraft.externalCheckoutUrl}
-                            disabled={!canManageSensitiveSettings}
-                            onChange={(event) =>
-                              setProductDraft((current) => ({
-                                ...current,
-                                externalCheckoutUrl: event.currentTarget.value,
-                              }))
-                            }
-                          />
-                        </AdminField>
                       </div>
+                    </article>
+                  ))}
+                </div>
+              </AdminFormCard>
 
-                      <div className="admin-inline-tip">
-                        <i className="fa-solid fa-shield-halved" />
-                        <p>
-                          <strong>{productDraft.title || 'Este producto'}</strong>
-                          {' '}
-                          saldrá por
-                          {' '}
-                          <strong>{getCheckoutProviderLabel(productDraft.checkoutProvider)}</strong>
-                          {productDraft.requiresIdentity
-                            ? ' y exigirá identidad validada.'
-                            : ' sin exigir login de identidad extra.'}
+              {isProductEditorOpen ? (
+                <div
+                  className="admin-editor-drawer-scrim"
+                  onClick={(event) => {
+                    if (event.target === event.currentTarget) {
+                      closeProductEditor();
+                    }
+                  }}
+                >
+                  <aside
+                    className="admin-editor-drawer"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Editor de producto"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="admin-editor-drawer__header">
+                      <div>
+                        <p className="admin-section__eyebrow">Product editor</p>
+                        <h3>{selectedProductSlug ? 'Editar producto' : 'Nuevo producto'}</h3>
+                        <p className="admin-muted-text">
+                          Edita el producto en una superficie dedicada. La parte de gateway e identidad sigue en
+                          <strong> Payments</strong>.
                         </p>
                       </div>
 
                       <div className="admin-row admin-row--wrap">
-                        {canManageSensitiveSettings ? (
-                          <button className="admin-button admin-button--primary" type="button" onClick={saveProduct}>
-                            Guardar ajustes de pago
+                        {productSavedMessage ? <span className="admin-pill">{productSavedMessage}</span> : null}
+                        <button className="admin-utility-button" type="button" onClick={closeProductEditor} aria-label="Cerrar editor">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="admin-editor-drawer__body">
+                      <div className="admin-detail-list">
+                        <div>
+                          <span>Precio actual</span>
+                          <strong>{productPreviewPrice}</strong>
+                        </div>
+                        <div>
+                          <span>Precio anterior</span>
+                          <strong>{productPreviewOldPrice || 'Sin precio anterior'}</strong>
+                        </div>
+                        <div>
+                          <span>Badges</span>
+                          <strong>{productPreviewBadges.join(' · ') || 'Sin badges'}</strong>
+                        </div>
+                      </div>
+
+                      <div className="admin-grid admin-grid--2">
+                        <AdminField label="Título">
+                          <input value={productDraft.title} onChange={(event) => setProductDraft((current) => ({ ...current, title: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Slug">
+                          <input value={productDraft.slug} onChange={(event) => setProductDraft((current) => ({ ...current, slug: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Título completo">
+                          <input value={productDraft.fullTitle} onChange={(event) => setProductDraft((current) => ({ ...current, fullTitle: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Categoría principal">
+                          <select value={productDraft.categoryId} onChange={(event) => setProductDraft((current) => ({ ...current, categoryId: event.currentTarget.value }))}>
+                            {categories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.label}
+                              </option>
+                            ))}
+                          </select>
+                        </AdminField>
+                        <AdminField label="Categorías" hint="Separadas por comas">
+                          <input value={productDraft.categoriesText} onChange={(event) => setProductDraft((current) => ({ ...current, categoriesText: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Imagen">
+                          <input value={productDraft.image} onChange={(event) => setProductDraft((current) => ({ ...current, image: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Precio">
+                          <input value={productDraft.priceValue} onChange={(event) => setProductDraft((current) => ({ ...current, priceValue: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Precio anterior">
+                          <input value={productDraft.oldPriceValue} onChange={(event) => setProductDraft((current) => ({ ...current, oldPriceValue: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Descuento visible">
+                          <input value={productDraft.discountText} onChange={(event) => setProductDraft((current) => ({ ...current, discountText: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Frameworks">
+                          <input value={productDraft.frameworksText} onChange={(event) => setProductDraft((current) => ({ ...current, frameworksText: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Extracto">
+                          <textarea value={productDraft.excerpt} onChange={(event) => setProductDraft((current) => ({ ...current, excerpt: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Features" hint="Uno por línea">
+                          <textarea value={productDraft.featuresText} onChange={(event) => setProductDraft((current) => ({ ...current, featuresText: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Descripción HTML">
+                          <textarea value={productDraft.descriptionHtml} onChange={(event) => setProductDraft((current) => ({ ...current, descriptionHtml: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Galería" hint="Una URL por línea">
+                          <textarea value={productDraft.galleryText} onChange={(event) => setProductDraft((current) => ({ ...current, galleryText: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Preview link">
+                          <input value={productDraft.previewLink} onChange={(event) => setProductDraft((current) => ({ ...current, previewLink: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Documentation link">
+                          <input value={productDraft.documentationLink} onChange={(event) => setProductDraft((current) => ({ ...current, documentationLink: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Open version id">
+                          <input value={productDraft.openVersionId} onChange={(event) => setProductDraft((current) => ({ ...current, openVersionId: event.currentTarget.value }))} />
+                        </AdminField>
+                        <AdminField label="Escrow version id">
+                          <input value={productDraft.escrowVersionId} onChange={(event) => setProductDraft((current) => ({ ...current, escrowVersionId: event.currentTarget.value }))} />
+                        </AdminField>
+                      </div>
+                    </div>
+
+                    <div className="admin-editor-drawer__footer">
+                      <div className="admin-row admin-row--wrap">
+                        {selectedProductSlug ? (
+                          <button className="admin-button admin-button--danger" type="button" onClick={deleteCurrentProduct}>
+                            Borrar
                           </button>
                         ) : null}
-                        <button
-                          className="admin-button admin-button--ghost"
-                          type="button"
-                          onClick={() => navigate('/admin/dashboard/products')}
-                        >
-                          Volver a Productos
-                        </button>
                       </div>
-                    </>
-                  ) : (
-                    <div className="admin-empty-panel">
-                      <i className="fa-solid fa-credit-card" />
-                      <h3>Selecciona un producto</h3>
-                      <p>Elige un producto del listado para configurar su gateway de pago.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="admin-section" id="auth">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Auth</p>
-                <h2>Login del cliente y proveedores</h2>
-              </div>
-
-              <div className="admin-grid admin-grid--stats">
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">Enabled</span>
-                  <strong>{enabledCustomerProviders.length}</strong>
-                  <p>Proveedores visibles ahora mismo en la página de login.</p>
-                </div>
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">Primary</span>
-                  <strong>{primaryCustomerProvider?.label ?? 'Sin definir'}</strong>
-                  <p>Proveedor principal mostrado en header y login.</p>
-                </div>
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">Header</span>
-                  <strong>{siteConfig.header.guestLoginLabel}</strong>
-                  <p>Texto del CTA de acceso en la cabecera pública.</p>
-                </div>
-                <div className="admin-card admin-stat-card">
-                  <span className="admin-stat-card__label">Session</span>
-                  <strong>{siteConfig.customerLogin.headerLoggedInTextPrefix || 'Sin prefijo'}</strong>
-                  <p>Prefijo visible cuando el cliente ya está conectado.</p>
-                </div>
-              </div>
-
-              <div className="admin-grid admin-grid--products">
-                <div className="admin-card">
-                  <div className="admin-card__title-row">
-                    <h3>Página de login</h3>
-                    <span className="admin-pill">
-                      {canManageSensitiveSettings ? siteConfig.customerLogin.primaryProviderId : 'Read only'}
-                    </span>
-                  </div>
-
-                  {!canManageSensitiveSettings ? (
-                    <div className="admin-inline-tip">
-                      <i className="fa-solid fa-lock" />
-                      <p>
-                        Solo el <strong>owner</strong> puede cambiar proveedores de login y branding de acceso.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  <div className="admin-grid admin-grid--2">
-                    <AdminField label="Título página login">
-                      <input
-                        value={siteConfig.customerLogin.routeTitle}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              routeTitle: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Subtítulo página login">
-                      <input
-                        value={siteConfig.customerLogin.routeSubtitle}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              routeSubtitle: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Texto ayuda login">
-                      <input
-                        value={siteConfig.customerLogin.helperText}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              helperText: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Texto fallback de botón">
-                      <input
-                        value={siteConfig.customerLogin.buttonLabel}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              buttonLabel: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Proveedor principal">
-                      <select
-                        value={siteConfig.customerLogin.primaryProviderId}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              primaryProviderId:
-                                event.currentTarget.value as typeof current.customerLogin.primaryProviderId,
-                            },
-                          }))
-                        }
-                      >
-                        {siteConfig.customerLogin.providers.map((provider) => (
-                          <option key={provider.id} value={provider.id}>
-                            {provider.label}
-                          </option>
-                        ))}
-                      </select>
-                    </AdminField>
-
-                    <AdminField label="Prefijo usuario conectado" hint="Ejemplo: Connected as">
-                      <input
-                        value={siteConfig.customerLogin.headerLoggedInTextPrefix}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              headerLoggedInTextPrefix: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-                  </div>
-                </div>
-
-                <div className="admin-card">
-                  <div className="admin-card__title-row">
-                    <h3>Branding del acceso</h3>
-                    <span className="admin-pill">{enabledCustomerProviders.length} activos</span>
-                  </div>
-
-                  <div className="admin-grid admin-grid--2">
-                    <AdminField label="Logo de la página login">
-                      <input
-                        value={siteConfig.customerLogin.brandLogoSrc}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              brandLogoSrc: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Alt del logo login">
-                      <input
-                        value={siteConfig.customerLogin.brandLogoAlt}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              brandLogoAlt: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Label partner / proveedor">
-                      <input
-                        value={siteConfig.customerLogin.providerLabel}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providerLabel: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Logo fallback proveedor">
-                      <input
-                        value={siteConfig.customerLogin.providerLogoSrc}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providerLogoSrc: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Alt fallback proveedor">
-                      <input
-                        value={siteConfig.customerLogin.providerLogoAlt}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providerLogoAlt: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-
-                    <AdminField label="Texto login header público">
-                      <input
-                        value={siteConfig.header.guestLoginLabel}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(event) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            header: {
-                              ...current.header,
-                              guestLoginLabel: event.currentTarget.value,
-                            },
-                          }))
-                        }
-                      />
-                    </AdminField>
-                  </div>
-
-                  <div className="admin-inline-tip">
-                    <i className="fa-solid fa-circle-info" />
-                    <p>
-                      Google y Discord dependen de <strong>Supabase Auth</strong>. FiveM depende del flujo real de
-                      <strong> Tebex Headless</strong> y de las edge functions desplegadas.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="admin-group-card admin-grid admin-grid--2">
-                {siteConfig.customerLogin.providers.map((provider, index) => (
-                  <div className="admin-group-card" key={provider.id}>
-                    <div className="admin-card__title-row">
-                      <h3>{provider.label}</h3>
-                      <span className="admin-pill">{provider.id}</span>
-                    </div>
-
-                    <div className="admin-stack">
-                      <AdminToggle
-                        label={`Activar ${provider.label}`}
-                        checked={provider.enabled}
-                        disabled={!canManageSensitiveSettings}
-                        onChange={(checked) =>
-                          updateSiteConfig((current) => ({
-                            ...current,
-                            customerLogin: {
-                              ...current.customerLogin,
-                              providers: updateArrayItem(current.customerLogin.providers, index, {
-                                ...current.customerLogin.providers[index],
-                                enabled: checked,
-                              }),
-                            },
-                          }))
-                        }
-                      />
-
-                      <AdminField label="Nombre visible">
-                        <input
-                          value={provider.label}
-                          disabled={!canManageSensitiveSettings}
-                          onChange={(event) =>
-                            updateSiteConfig((current) => ({
-                              ...current,
-                              customerLogin: {
-                                ...current.customerLogin,
-                                providers: updateArrayItem(current.customerLogin.providers, index, {
-                                  ...current.customerLogin.providers[index],
-                                  label: event.currentTarget.value,
-                                }),
-                              },
-                            }))
-                          }
-                        />
-                      </AdminField>
-
-                      <AdminField label="Texto botón">
-                        <input
-                          value={provider.buttonLabel}
-                          disabled={!canManageSensitiveSettings}
-                          onChange={(event) =>
-                            updateSiteConfig((current) => ({
-                              ...current,
-                              customerLogin: {
-                                ...current.customerLogin,
-                                providers: updateArrayItem(current.customerLogin.providers, index, {
-                                  ...current.customerLogin.providers[index],
-                                  buttonLabel: event.currentTarget.value,
-                                }),
-                              },
-                            }))
-                          }
-                        />
-                      </AdminField>
-
-                      <AdminField label="Logo / imagen">
-                        <input
-                          value={provider.logoSrc ?? ''}
-                          disabled={!canManageSensitiveSettings}
-                          onChange={(event) =>
-                            updateSiteConfig((current) => ({
-                              ...current,
-                              customerLogin: {
-                                ...current.customerLogin,
-                                providers: updateArrayItem(current.customerLogin.providers, index, {
-                                  ...current.customerLogin.providers[index],
-                                  logoSrc: event.currentTarget.value || undefined,
-                                }),
-                              },
-                            }))
-                          }
-                        />
-                      </AdminField>
-
-                      <AdminField label="Alt del logo">
-                        <input
-                          value={provider.logoAlt ?? ''}
-                          disabled={!canManageSensitiveSettings}
-                          onChange={(event) =>
-                            updateSiteConfig((current) => ({
-                              ...current,
-                              customerLogin: {
-                                ...current.customerLogin,
-                                providers: updateArrayItem(current.customerLogin.providers, index, {
-                                  ...current.customerLogin.providers[index],
-                                  logoAlt: event.currentTarget.value || undefined,
-                                }),
-                              },
-                            }))
-                          }
-                        />
-                      </AdminField>
-
-                      <AdminField label="Icon class FontAwesome">
-                        <input
-                          value={provider.iconClass ?? ''}
-                          disabled={!canManageSensitiveSettings}
-                          onChange={(event) =>
-                            updateSiteConfig((current) => ({
-                              ...current,
-                              customerLogin: {
-                                ...current.customerLogin,
-                                providers: updateArrayItem(current.customerLogin.providers, index, {
-                                  ...current.customerLogin.providers[index],
-                                  iconClass: event.currentTarget.value || undefined,
-                                }),
-                              },
-                            }))
-                          }
-                        />
-                      </AdminField>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="admin-section" id="customers">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Customers</p>
-                <h2>Clientes sincronizados</h2>
-              </div>
-
-              {!isRemoteAdminAuth ? (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-database" />
-                  <h3>Disponible en modo Supabase</h3>
-                  <p>
-                    Esta vista solo muestra datos reales cuando el panel está conectado a Supabase Auth y a la base de datos.
-                  </p>
-                </div>
-              ) : !isCommerceReady ? (
-                <div className="admin-card admin-empty-panel">
-                  <div className="checkout-stage__loader" />
-                  <p>Cargando clientes reales desde Supabase...</p>
-                </div>
-              ) : commerceError ? (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-triangle-exclamation" />
-                  <h3>No se pudieron cargar los clientes</h3>
-                  <p>{commerceError}</p>
-                </div>
-              ) : customers.length ? (
-                <>
-                  <div className="admin-card admin-toolbar">
-                    <label className="admin-toolbar__search">
-                      <i className="fa-solid fa-magnifying-glass" />
-                      <input
-                        placeholder="Buscar por nombre, email, proveedor o user id"
-                        value={customerQuery}
-                        onChange={(event) => setCustomerQuery(event.currentTarget.value)}
-                      />
-                    </label>
-                    <div className="admin-toolbar__meta">
-                      <span className="admin-pill">
-                        {filteredCustomers.length} / {customers.length} clientes
-                      </span>
-                      <span className="admin-pill">
-                        {orders.length} pedidos totales
-                      </span>
-                    </div>
-                  </div>
-
-                  {filteredCustomers.length ? (
-                    <div className="admin-data-grid admin-data-grid--split">
-                      <div className="admin-data-stack">
-                        {filteredCustomers.map((customer) => {
-                          const customerOrders = ordersByCustomer[customer.userId] ?? [];
-                          const customerRevenue = customerOrders.reduce((sum, order) => sum + order.totalEur, 0);
-                          const isActive = selectedCustomer?.userId === customer.userId;
-
-                          return (
-                            <article
-                              className={`admin-card admin-list-card admin-customer-card ${isActive ? 'is-active' : ''}`}
-                              key={customer.userId}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => setSelectedCustomerId(customer.userId)}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                  event.preventDefault();
-                                  setSelectedCustomerId(customer.userId);
-                                }
-                              }}
-                            >
-                              <div className="admin-card__title-row">
-                                <div>
-                                  <h3>{customer.displayName}</h3>
-                                  <p className="admin-muted-text">{customer.email ?? 'Sin email visible'}</p>
-                                </div>
-                                <span className="admin-pill">
-                                  {customer.isAnonymous ? 'Anonymous' : customer.provider}
-                                </span>
-                              </div>
-                              <div className="admin-list-card__meta">
-                                <span>{customerOrders.length} pedidos</span>
-                                <span>{formatAdminCurrency(customerRevenue)}</span>
-                                <span>{formatAdminDate(customer.updatedAt)}</span>
-                              </div>
-                            </article>
-                          );
-                        })}
-                      </div>
-
-                      <aside className="admin-card admin-detail-panel">
-                        {selectedCustomer ? (
-                          <>
-                            <div className="admin-card__title-row">
-                              <div>
-                                <p className="admin-section__eyebrow">Customer Detail</p>
-                                <h3>{selectedCustomer.displayName}</h3>
-                                <p className="admin-muted-text">{selectedCustomer.email ?? 'Sin email visible'}</p>
-                              </div>
-                              <span className="admin-pill">
-                                {selectedCustomer.isAnonymous ? 'Anonymous' : selectedCustomer.provider}
-                              </span>
-                            </div>
-
-                            <div className="admin-key-metrics">
-                              <div>
-                                <span>Pedidos</span>
-                                <strong>{selectedCustomerOrders.length}</strong>
-                              </div>
-                              <div>
-                                <span>Facturación</span>
-                                <strong>{formatAdminCurrency(selectedCustomerRevenue)}</strong>
-                              </div>
-                              <div>
-                                <span>Último acceso</span>
-                                <strong>{formatAdminDate(selectedCustomer.updatedAt)}</strong>
-                              </div>
-                            </div>
-
-                            <div className="admin-detail-list">
-                              <div>
-                                <span>User ID</span>
-                                <strong>{selectedCustomer.userId}</strong>
-                              </div>
-                              <div>
-                                <span>Creado</span>
-                                <strong>{formatAdminDate(selectedCustomer.createdAt)}</strong>
-                              </div>
-                              <div>
-                                <span>Actualizado</span>
-                                <strong>{formatAdminDate(selectedCustomer.updatedAt)}</strong>
-                              </div>
-                              <div>
-                                <span>Proveedor</span>
-                                <strong>{selectedCustomer.isAnonymous ? 'anonymous' : selectedCustomer.provider}</strong>
-                              </div>
-                            </div>
-
-                            <div className="admin-subsection">
-                              <div className="admin-card__title-row">
-                                <h3>Pedidos recientes</h3>
-                                <span className="admin-pill">
-                                  {selectedCustomerOrders.length}
-                                </span>
-                              </div>
-
-                              {selectedCustomerOrders.length ? (
-                                <div className="admin-order-items">
-                                  {selectedCustomerOrders.slice(0, 6).map((order) => (
-                                    <article
-                                      className="admin-order-item admin-order-item--button"
-                                      key={order.id}
-                                      role="button"
-                                      tabIndex={0}
-                                      onClick={() => {
-                                        setSelectedOrderId(order.id);
-                                        setExpandedOrderId(order.id);
-                                        navigate('/admin/dashboard/orders');
-                                      }}
-                                      onKeyDown={(event) => {
-                                        if (event.key === 'Enter' || event.key === ' ') {
-                                          event.preventDefault();
-                                          setSelectedOrderId(order.id);
-                                          setExpandedOrderId(order.id);
-                                          navigate('/admin/dashboard/orders');
-                                        }
-                                      }}
-                                    >
-                                      <div>
-                                        <strong>Order #{order.id}</strong>
-                                        <span>{formatAdminDate(order.createdAt)}</span>
-                                      </div>
-                                      <div className="admin-order-item__meta">
-                                        <span>{order.status}</span>
-                                        <strong>{formatAdminCurrency(order.totalEur)}</strong>
-                                      </div>
-                                    </article>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="admin-muted-text">
-                                  Este cliente todavía no tiene pedidos registrados en la tienda.
-                                </p>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="admin-empty-panel">
-                            <i className="fa-solid fa-user-check" />
-                            <h3>Selecciona un cliente</h3>
-                            <p>El detalle ampliado aparece aquí cuando eliges un cliente de la lista.</p>
-                          </div>
-                        )}
-                      </aside>
-                    </div>
-                  ) : (
-                    <div className="admin-card admin-empty-panel">
-                      <i className="fa-solid fa-magnifying-glass" />
-                      <h3>Sin coincidencias</h3>
-                      <p>Prueba con otro nombre, email, proveedor o user id.</p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-users-slash" />
-                  <h3>Aún no hay clientes</h3>
-                  <p>Cuando alguien inicie sesión en la tienda con Supabase aparecerá aquí.</p>
-                </div>
-              )}
-            </section>
-
-            <section className="admin-section" id="orders">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Orders</p>
-                <h2>Pedidos guardados</h2>
-              </div>
-
-              {!isRemoteAdminAuth ? (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-database" />
-                  <h3>Disponible en modo Supabase</h3>
-                  <p>
-                    Los pedidos solo se guardan y se muestran aquí cuando la tienda está trabajando contra Supabase.
-                  </p>
-                </div>
-              ) : !isCommerceReady ? (
-                <div className="admin-card admin-empty-panel">
-                  <div className="checkout-stage__loader" />
-                  <p>Cargando pedidos reales desde Supabase...</p>
-                </div>
-              ) : commerceError ? (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-triangle-exclamation" />
-                  <h3>No se pudieron cargar los pedidos</h3>
-                  <p>{commerceError}</p>
-                </div>
-              ) : orders.length ? (
-                <>
-                  <div className="admin-card admin-toolbar">
-                    <label className="admin-toolbar__search">
-                      <i className="fa-solid fa-magnifying-glass" />
-                      <input
-                        placeholder="Buscar por order id, cliente, email o producto"
-                        value={orderQuery}
-                        onChange={(event) => setOrderQuery(event.currentTarget.value)}
-                      />
-                    </label>
-                    <div className="admin-toolbar__filters">
-                      <select
-                        value={orderStatusFilter}
-                        onChange={(event) => setOrderStatusFilter(event.currentTarget.value)}
-                      >
-                        <option value="all">Todos los estados</option>
-                        <option value="completed">Completed</option>
-                        <option value="pending">Pending</option>
-                        <option value="failed">Failed</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                      <select
-                        value={orderTimeFilter}
-                        onChange={(event) => setOrderTimeFilter(event.currentTarget.value)}
-                      >
-                        <option value="all">Cualquier fecha</option>
-                        <option value="today">Últimas 24h</option>
-                        <option value="7d">Últimos 7 días</option>
-                        <option value="30d">Últimos 30 días</option>
-                      </select>
-                      <select
-                        value={orderSort}
-                        onChange={(event) => setOrderSort(event.currentTarget.value)}
-                      >
-                        <option value="newest">Más recientes</option>
-                        <option value="oldest">Más antiguos</option>
-                        <option value="highest">Mayor importe</option>
-                        <option value="lowest">Menor importe</option>
-                      </select>
-                      <span className="admin-pill">
-                        {sortedOrders.length} / {orders.length} pedidos
-                      </span>
-                    </div>
-                  </div>
-
-                  {sortedOrders.length ? (
-                    <div className="admin-data-grid admin-data-grid--split">
-                      <div className="admin-data-stack">
-                        {sortedOrders.map((order) => {
-                          const isExpanded = expandedOrderId === order.id;
-                          const isActive = selectedOrder?.id === order.id;
-
-                          return (
-                            <article
-                              className={`admin-card admin-list-card admin-order-card ${isActive ? 'is-active' : ''}`}
-                              key={order.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => {
-                                setSelectedOrderId(order.id);
-                                setExpandedOrderId((current) => (current === order.id ? null : order.id));
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                  event.preventDefault();
-                                  setSelectedOrderId(order.id);
-                                  setExpandedOrderId((current) => (current === order.id ? null : order.id));
-                                }
-                              }}
-                            >
-                              <div className="admin-card__title-row">
-                                <div>
-                                  <h3>Order #{order.id}</h3>
-                                  <p className="admin-muted-text">
-                                    {order.customerName}
-                                    {order.customerEmail ? ` · ${order.customerEmail}` : ''}
-                                  </p>
-                                </div>
-                                <div className="admin-row">
-                                  <span className="admin-pill">{order.status}</span>
-                                  <span className="admin-pill">{getCheckoutProviderLabel(order.provider)}</span>
-                                </div>
-                              </div>
-
-                              <div className="admin-detail-list">
-                                <div>
-                                  <span>Cliente</span>
-                                  <strong>{order.customerName}</strong>
-                                </div>
-                                <div>
-                                  <span>Total</span>
-                                  <strong>{order.totalEur.toFixed(2)} EUR</strong>
-                                </div>
-                                <div>
-                                  <span>Subtotal</span>
-                                  <strong>{order.subtotalEur.toFixed(2)} EUR</strong>
-                                </div>
-                                <div>
-                                  <span>Fecha</span>
-                                  <strong>{formatAdminDate(order.createdAt)}</strong>
-                                </div>
-                                <div>
-                                <span>Currency</span>
-                                <strong>{order.currency}</strong>
-                              </div>
-                              {order.providerStatus ? (
-                                <div>
-                                  <span>Provider status</span>
-                                  <strong>{order.providerStatus}</strong>
-                                </div>
-                              ) : null}
-                              </div>
-
-                              {isExpanded ? (
-                                <div className="admin-order-items">
-                                  {order.items.length ? (
-                                    order.items.map((item) => (
-                                      <div className="admin-order-item" key={`${order.id}-${item.productSlug}`}>
-                                        <div>
-                                          <strong>{item.productTitle}</strong>
-                                          <span>{item.productSlug}</span>
-                                        </div>
-                                        <div className="admin-order-item__meta">
-                                          <span>x{item.quantity}</span>
-                                          <strong>{item.subtotalEur.toFixed(2)} EUR</strong>
-                                        </div>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <p className="admin-muted-text">Este pedido todavía no tiene líneas visibles.</p>
-                                  )}
-                                </div>
-                              ) : null}
-                            </article>
-                          );
-                        })}
-                      </div>
-
-                      <aside className="admin-card admin-detail-panel">
-                        {selectedOrder ? (
-                          <>
-                            <div className="admin-card__title-row">
-                              <div>
-                                <p className="admin-section__eyebrow">Order Detail</p>
-                                <h3>Order #{selectedOrder.id}</h3>
-                                <p className="admin-muted-text">
-                                  {selectedOrder.customerName}
-                                  {selectedOrder.customerEmail ? ` · ${selectedOrder.customerEmail}` : ''}
-                                </p>
-                              </div>
-                              <div className="admin-chip-row">
-                                <span className="admin-pill">{selectedOrder.status}</span>
-                                <span className="admin-pill">{getCheckoutProviderLabel(selectedOrder.provider)}</span>
-                              </div>
-                            </div>
-
-                            <div className="admin-key-metrics">
-                              <div>
-                                <span>Total</span>
-                                <strong>{formatAdminCurrency(selectedOrder.totalEur)}</strong>
-                              </div>
-                              <div>
-                                <span>Subtotal</span>
-                                <strong>{formatAdminCurrency(selectedOrder.subtotalEur)}</strong>
-                              </div>
-                              <div>
-                                <span>Items</span>
-                                <strong>{selectedOrder.items.length}</strong>
-                              </div>
-                            </div>
-
-                            <div className="admin-detail-list">
-                              <div>
-                                <span>Cliente</span>
-                                <strong>{selectedOrder.customerName}</strong>
-                              </div>
-                              <div>
-                                <span>Email</span>
-                                <strong>{selectedOrder.customerEmail ?? 'Sin email visible'}</strong>
-                              </div>
-                              <div>
-                                <span>Fecha</span>
-                                <strong>{formatAdminDate(selectedOrder.createdAt)}</strong>
-                              </div>
-                              <div>
-                                <span>Actualizado</span>
-                                <strong>{formatAdminDate(selectedOrder.updatedAt)}</strong>
-                              </div>
-                              <div>
-                                <span>Currency</span>
-                                <strong>{selectedOrder.currency}</strong>
-                              </div>
-                              <div>
-                                <span>User ID</span>
-                                <strong>{selectedOrder.userId}</strong>
-                              </div>
-                              <div>
-                                <span>Provider status</span>
-                                <strong>{selectedOrder.providerStatus ?? 'Sin dato'}</strong>
-                              </div>
-                              <div>
-                                <span>Provider order</span>
-                                <strong>{selectedOrder.providerOrderId ?? 'Sin dato'}</strong>
-                              </div>
-                              <div>
-                                <span>Reference</span>
-                                <strong>{selectedOrder.providerReference ?? 'Sin dato'}</strong>
-                              </div>
-                              <div>
-                                <span>Paid at</span>
-                                <strong>{selectedOrder.paidAt ? formatAdminDate(selectedOrder.paidAt) : 'Pendiente'}</strong>
-                              </div>
-                              <div>
-                                <span>Cancelled at</span>
-                                <strong>{selectedOrder.cancelledAt ? formatAdminDate(selectedOrder.cancelledAt) : 'No'}</strong>
-                              </div>
-                            </div>
-
-                            {selectedOrderCustomer ? (
-                              <div className="admin-subsection">
-                                <div className="admin-card__title-row">
-                                  <h3>Cliente vinculado</h3>
-                                  <button
-                                    className="admin-button admin-button--small"
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedCustomerId(selectedOrderCustomer.userId);
-                                      navigate('/admin/dashboard/customers');
-                                    }}
-                                  >
-                                    Ver cliente
-                                  </button>
-                                </div>
-                                <div className="admin-detail-list">
-                                  <div>
-                                    <span>Nombre</span>
-                                    <strong>{selectedOrderCustomer.displayName}</strong>
-                                  </div>
-                                  <div>
-                                    <span>Proveedor</span>
-                                    <strong>{selectedOrderCustomer.isAnonymous ? 'anonymous' : selectedOrderCustomer.provider}</strong>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : null}
-
-                            <div className="admin-subsection">
-                              <div className="admin-card__title-row">
-                                <h3>Líneas del pedido</h3>
-                                <span className="admin-pill">
-                                  {selectedOrder.items.length}
-                                </span>
-                              </div>
-
-                              {selectedOrder.items.length ? (
-                                <div className="admin-order-items">
-                                  {selectedOrder.items.map((item) => (
-                                    <div className="admin-order-item" key={`${selectedOrder.id}-${item.productSlug}`}>
-                                      <div>
-                                        <strong>{item.productTitle}</strong>
-                                        <span>{item.productSlug}</span>
-                                      </div>
-                                      <div className="admin-order-item__meta">
-                                        <span>x{item.quantity}</span>
-                                        <strong>{formatAdminCurrency(item.subtotalEur)}</strong>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="admin-muted-text">Este pedido todavía no tiene líneas visibles.</p>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="admin-empty-panel">
-                            <i className="fa-solid fa-receipt" />
-                            <h3>Selecciona un pedido</h3>
-                            <p>El detalle completo del checkout aparecerá aquí cuando elijas uno de la lista.</p>
-                          </div>
-                        )}
-                      </aside>
-                    </div>
-                  ) : (
-                    <div className="admin-card admin-empty-panel">
-                      <i className="fa-solid fa-magnifying-glass" />
-                      <h3>Sin coincidencias</h3>
-                      <p>Prueba con otro order id, cliente, email, estado o producto.</p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-box-open" />
-                  <h3>Aún no hay pedidos</h3>
-                  <p>Cuando un cliente complete una compra en la tienda aparecerá aquí en tiempo real.</p>
-                </div>
-              )}
-            </section>
-
-            <section className="admin-section" id="admins">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Admins</p>
-                <h2>Miembros del dashboard</h2>
-              </div>
-
-              {!isRemoteAdminAuth ? (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-database" />
-                  <h3>Disponible en modo Supabase</h3>
-                  <p>Los roles y miembros del panel se gestionan desde `storefront_admin_members`.</p>
-                </div>
-              ) : !isAdminMembersReady ? (
-                <div className="admin-card admin-empty-panel">
-                  <div className="checkout-stage__loader" />
-                  <p>Cargando miembros reales del panel...</p>
-                </div>
-              ) : adminMembersError ? (
-                <div className="admin-card admin-empty-panel">
-                  <i className="fa-solid fa-triangle-exclamation" />
-                  <h3>No se pudieron cargar los miembros</h3>
-                  <p>{adminMembersError}</p>
-                </div>
-              ) : (
-                <>
-                  <div className="admin-grid admin-grid--stats">
-                    <div className="admin-card admin-stat-card">
-                      <span className="admin-stat-card__label">Owners</span>
-                      <strong>{adminMembers.filter((member) => member.role === 'owner').length}</strong>
-                      <p>Control total del panel y de los miembros.</p>
-                    </div>
-                    <div className="admin-card admin-stat-card">
-                      <span className="admin-stat-card__label">Admins</span>
-                      <strong>{adminMembers.filter((member) => member.role === 'admin').length}</strong>
-                      <p>Gestión operativa sin control sobre miembros.</p>
-                    </div>
-                    <div className="admin-card admin-stat-card">
-                      <span className="admin-stat-card__label">Editors</span>
-                      <strong>{adminMembers.filter((member) => member.role === 'editor').length}</strong>
-                      <p>Edición de contenido con permisos limitados.</p>
-                    </div>
-                    <div className="admin-card admin-stat-card">
-                      <span className="admin-stat-card__label">Your role</span>
-                      <strong>{adminSession.role ?? 'unknown'}</strong>
-                      <p>{canManageAdmins ? 'Puedes gestionar miembros.' : 'Vista de solo lectura.'}</p>
-                    </div>
-                  </div>
-
-                  <div className="admin-grid admin-grid--products">
-                    <div className="admin-card">
-                      <div className="admin-card__title-row">
-                        <h3>Miembros actuales</h3>
-                        <span className="admin-pill">{adminMembers.length} miembros</span>
-                      </div>
-
-                      <div className="admin-stack">
-                        {adminMembers.map((member) => (
-                          <article className="admin-group-card" key={member.userId}>
-                            <div className="admin-card__title-row">
-                              <div>
-                                <h3>{member.email ?? member.userId}</h3>
-                                <p className="admin-muted-text">{member.userId}</p>
-                              </div>
-                              <span className="admin-pill">{member.role}</span>
-                            </div>
-
-                            <div className="admin-detail-list">
-                              <div>
-                                <span>Creado</span>
-                                <strong>{formatAdminDate(member.createdAt)}</strong>
-                              </div>
-                              <div>
-                                <span>Actualizado</span>
-                                <strong>{formatAdminDate(member.updatedAt)}</strong>
-                              </div>
-                            </div>
-
-                            <div className="admin-row admin-row--wrap">
-                              <select
-                                value={member.role}
-                                disabled={!canManageAdmins || isAdminActionBusy}
-                                onChange={(event) =>
-                                  void handleAdminRoleChange(
-                                    member.userId,
-                                    event.currentTarget.value as AdminMemberRecord['role'],
-                                  )
-                                }
-                              >
-                                <option value="owner">Owner</option>
-                                <option value="admin">Admin</option>
-                                <option value="editor">Editor</option>
-                              </select>
-                              <button
-                                className="admin-button admin-button--danger admin-button--small"
-                                type="button"
-                                disabled={!canManageAdmins || isAdminActionBusy}
-                                onClick={() => void handleRemoveAdmin(member.userId)}
-                              >
-                                Quitar
-                              </button>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="admin-card">
-                      <div className="admin-card__title-row">
-                        <h3>Vincular miembro</h3>
-                        <span className="admin-pill">{canManageAdmins ? 'Owner only' : 'Read only'}</span>
-                      </div>
-
-                      <div className="admin-grid admin-grid--2">
-                        <AdminField label="Email o user id" hint="La cuenta ya debe existir en Supabase Auth">
-                          <input
-                            value={adminLookup}
-                            disabled={!canManageAdmins || isAdminActionBusy}
-                            onChange={(event) => setAdminLookup(event.currentTarget.value)}
-                          />
-                        </AdminField>
-
-                        <AdminField label="Rol">
-                          <select
-                            value={adminRoleDraft}
-                            disabled={!canManageAdmins || isAdminActionBusy}
-                            onChange={(event) =>
-                              setAdminRoleDraft(event.currentTarget.value as AdminMemberRecord['role'])
-                            }
-                          >
-                            <option value="editor">Editor</option>
-                            <option value="admin">Admin</option>
-                            <option value="owner">Owner</option>
-                          </select>
-                        </AdminField>
-                      </div>
-
-                      <div className="admin-inline-tip">
-                        <i className="fa-solid fa-user-shield" />
-                        <p>
-                          Solo el <strong>owner</strong> puede añadir, quitar o cambiar roles. El usuario debe existir primero en
-                          {' '}
-                          <strong>Supabase Auth</strong>.
-                        </p>
-                      </div>
-
-                      {adminActionMessage ? <p className="admin-auth__error">{adminActionMessage}</p> : null}
 
                       <div className="admin-row admin-row--wrap">
-                        <button
-                          className="admin-button admin-button--primary"
-                          type="button"
-                          disabled={!canManageAdmins || isAdminActionBusy}
-                          onClick={() => void handleAddAdminMember()}
-                        >
-                          {isAdminActionBusy ? 'Guardando...' : 'Vincular miembro'}
+                        <button className="admin-button admin-button--ghost" type="button" onClick={closeProductEditor}>
+                          Cancelar
+                        </button>
+                        <button className="admin-button admin-button--primary" type="button" onClick={saveProduct}>
+                          Guardar producto
                         </button>
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
-            </section>
-
-            <section className="admin-section" id="content">
-              <div className="admin-section__head">
-                <p className="admin-section__eyebrow">Contenido</p>
-                <h2>Términos, textos y módulos visibles</h2>
-              </div>
-
-              <div className="admin-card admin-grid admin-grid--2">
-                <AdminToggle
-                  label="Mostrar Why Choose Us"
-                  checked={siteConfig.whyChooseUs.enabled}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      whyChooseUs: { ...current.whyChooseUs, enabled: checked },
-                    }))
-                  }
-                />
-                <AdminToggle
-                  label="Mostrar Achievements"
-                  checked={siteConfig.achievements.enabled}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      achievements: { ...current.achievements, enabled: checked },
-                    }))
-                  }
-                />
-                <AdminToggle
-                  label="Mostrar Reviews"
-                  checked={siteConfig.reviews.enabled}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      reviews: { ...current.reviews, enabled: checked },
-                    }))
-                  }
-                />
-                <AdminToggle
-                  label="Mostrar FAQ"
-                  checked={siteConfig.faq.enabled}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      faq: { ...current.faq, enabled: checked },
-                    }))
-                  }
-                />
-                <AdminToggle
-                  label="Mostrar Payments"
-                  checked={siteConfig.payments.enabled}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      payments: { ...current.payments, enabled: checked },
-                    }))
-                  }
-                />
-                <AdminToggle
-                  label="Mostrar Discord banner"
-                  checked={siteConfig.discordBanner.enabled}
-                  onChange={(checked) =>
-                    updateSiteConfig((current) => ({
-                      ...current,
-                      discordBanner: { ...current.discordBanner, enabled: checked },
-                    }))
-                  }
-                />
-
-            <AdminField label="Título destacados home">
-              <input
-                value={siteConfig.storeText.featuredProductsLabel}
-                onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, featuredProductsLabel: event.currentTarget.value },
-                      }))
-                    }
-              />
-            </AdminField>
-
-                <AdminField label="Texto Add to cart">
-                  <input
-                    value={siteConfig.storeText.productAddToCartLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, productAddToCartLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto soporte producto 1">
-                  <input
-                    value={siteConfig.storeText.productSupportPrimary}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, productSupportPrimary: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto soporte producto 2">
-                  <input
-                    value={siteConfig.storeText.productSupportSecondary}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, productSupportSecondary: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Título cesta / checkout">
-                  <input
-                    value={siteConfig.storeText.checkoutBasketTitle}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, checkoutBasketTitle: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Título order summary">
-                  <input
-                    value={siteConfig.storeText.checkoutSummaryTitle}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, checkoutSummaryTitle: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Boton completar pago">
-                  <input
-                    value={siteConfig.storeText.checkoutCompletePaymentLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, checkoutCompletePaymentLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Boton seguir comprando">
-                  <input
-                    value={siteConfig.storeText.checkoutContinueShoppingLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, checkoutContinueShoppingLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Título bloque preview">
-                  <input
-                    value={siteConfig.storeText.productPreviewTitle}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, productPreviewTitle: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Título bloque documentación">
-                  <input
-                    value={siteConfig.storeText.productDocumentationTitle}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, productDocumentationTitle: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto link documentación">
-                  <input
-                    value={siteConfig.storeText.productDocumentationLinkLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, productDocumentationLinkLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto sin documentación">
-                  <input
-                    value={siteConfig.storeText.productDocumentationEmptyText}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, productDocumentationEmptyText: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto soporte checkout">
-                  <input
-                    value={siteConfig.storeText.checkoutSupportText}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, checkoutSupportText: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Texto 404 botón">
-                  <input
-                    value={siteConfig.storeText.notFoundButtonLabel}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        storeText: { ...current.storeText, notFoundButtonLabel: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Título términos">
-                  <input
-                    value={siteConfig.terms.title}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        terms: { ...current.terms, title: event.currentTarget.value },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Párrafos términos" hint="Uno por línea">
-                  <textarea
-                    value={siteConfig.terms.paragraphs.join('\n')}
-                    onChange={(event) =>
-                      updateSiteConfig((current) => ({
-                        ...current,
-                        terms: { ...current.terms, paragraphs: parseLines(event.currentTarget.value) },
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <AdminField label="Vídeos home" hint="Uno por línea: Título | URL">
-                  <textarea
-                    value={home.videos.map((video) => `${video.name} | ${video.url}`).join('\n')}
-                    onChange={(event) =>
-                      updateHome((current) => ({
-                        ...current,
-                        videos: parseLines(event.currentTarget.value).map((line) => {
-                          const [name, url] = line.split('|').map((entry) => entry.trim());
-                          return { name: name || 'Video', url: url || 'https://youtube.com/' };
-                        }),
-                      }))
-                    }
-                  />
-                </AdminField>
-
-                <div className="admin-group-card">
-                  <div className="admin-card__title-row">
-                    <h3>Actividad comercial en tiempo real</h3>
-                    <span className="admin-pill">Realtime</span>
-                  </div>
-                  <p className="admin-muted-text">
-                    Los bloques de Payments, Reviews y Achievements ya no usan texto harcodeado. Ahora salen de pedidos y reseñas reales guardados en Supabase.
-                  </p>
+                  </aside>
                 </div>
-              </div>
+              ) : null}
             </section>
 
-            <section className="admin-credit" aria-label="Creditos del creador">
-              <img className="admin-credit__logo" src={creatorLogoSrc} alt="Luckav Development" />
-            </section>
+            <AdminPaymentsSection
+              products={products}
+              selectedProductSlug={selectedProductSlug}
+              productDraft={productDraft}
+              paymentStats={paymentStats}
+              canManageSensitiveSettings={canManageSensitiveSettings}
+              onSelectProduct={setSelectedProductSlug}
+              onCheckoutProviderChange={(provider) =>
+                setProductDraft((current) => ({
+                  ...current,
+                  checkoutProvider: provider,
+                }))
+              }
+              onRequiresIdentityChange={(checked) =>
+                setProductDraft((current) => ({
+                  ...current,
+                  requiresIdentity: checked,
+                }))
+              }
+              onTebexPackageIdChange={(value) =>
+                setProductDraft((current) => ({
+                  ...current,
+                  tebexPackageId: value,
+                }))
+              }
+              onTebexServerIdChange={(value) =>
+                setProductDraft((current) => ({
+                  ...current,
+                  tebexServerId: value,
+                }))
+              }
+              onExternalCheckoutUrlChange={(value) =>
+                setProductDraft((current) => ({
+                  ...current,
+                  externalCheckoutUrl: value,
+                }))
+              }
+              onSave={saveProduct}
+              onBackToProducts={() => navigate('/admin/dashboard/products')}
+            />
+
+            <AdminAuthSection
+              siteConfig={siteConfig}
+              brandName={siteConfig.brandName}
+              authStats={authStats}
+              enabledCustomerProvidersCount={enabledCustomerProviders.length}
+              primaryCustomerProviderLabel={primaryCustomerProvider?.label ?? 'Sin proveedor'}
+              canManageSensitiveSettings={canManageSensitiveSettings}
+              updateSiteConfig={updateSiteConfig}
+            />
+
+            <AdminPopupSection
+              siteConfig={siteConfig}
+              updateSiteConfig={updateSiteConfig}
+            />
+
+            <AdminCustomersSection
+              isRemoteAdminAuth={isRemoteAdminAuth}
+              isCommerceReady={isCommerceReady}
+              commerceError={commerceError}
+              customers={customers}
+              orders={orders}
+              customerStats={customerStats}
+              customerQuery={customerQuery}
+              onCustomerQueryChange={setCustomerQuery}
+              filteredCustomers={filteredCustomers}
+              selectedCustomer={selectedCustomer}
+              selectedCustomerOrders={selectedCustomerOrders}
+              selectedCustomerRevenue={selectedCustomerRevenue}
+              ordersByCustomer={ordersByCustomer}
+              onSelectCustomer={setSelectedCustomerId}
+              onOpenOrder={(orderId) => {
+                setSelectedOrderId(orderId);
+                setExpandedOrderId(orderId);
+                navigate('/admin/dashboard/orders');
+              }}
+              formatAdminCurrency={formatAdminCurrency}
+              formatAdminDate={formatAdminDate}
+              getAdminInitials={getAdminInitials}
+            />
+
+            <AdminOrdersSection
+              isRemoteAdminAuth={isRemoteAdminAuth}
+              isCommerceReady={isCommerceReady}
+              commerceError={commerceError}
+              orders={orders}
+              orderStats={orderStats}
+              orderQuery={orderQuery}
+              onOrderQueryChange={setOrderQuery}
+              orderStatusFilter={orderStatusFilter}
+              onOrderStatusFilterChange={setOrderStatusFilter}
+              orderTimeFilter={orderTimeFilter}
+              onOrderTimeFilterChange={setOrderTimeFilter}
+              orderSort={orderSort}
+              onOrderSortChange={setOrderSort}
+              sortedOrders={sortedOrders}
+              selectedOrder={selectedOrder}
+              selectedOrderCustomer={selectedOrderCustomer}
+              expandedOrderId={expandedOrderId}
+              onSelectOrder={setSelectedOrderId}
+              onToggleExpandedOrder={(orderId) =>
+                setExpandedOrderId((current) => (current === orderId ? null : orderId))
+              }
+              onOpenCustomer={(userId) => {
+                setSelectedCustomerId(userId);
+                navigate('/admin/dashboard/customers');
+              }}
+              formatAdminCurrency={formatAdminCurrency}
+              formatAdminDate={formatAdminDate}
+              getCheckoutProviderLabel={getCheckoutProviderLabel}
+            />
+
+            <AdminAdminsSection
+              isRemoteAdminAuth={isRemoteAdminAuth}
+              isAdminMembersReady={isAdminMembersReady}
+              adminMembersError={adminMembersError}
+              adminAccessStats={adminAccessStats}
+              adminRoleSummary={adminRoleSummary}
+              adminMembers={adminMembers}
+              canManageAdmins={canManageAdmins}
+              isAdminActionBusy={isAdminActionBusy}
+              adminLookup={adminLookup}
+              adminRoleDraft={adminRoleDraft}
+              adminActionMessage={adminActionMessage}
+              onAdminLookupChange={setAdminLookup}
+              onAdminRoleDraftChange={setAdminRoleDraft}
+              onAddAdminMember={handleAddAdminMember}
+              onAdminRoleChange={handleAdminRoleChange}
+              onRemoveAdmin={handleRemoveAdmin}
+              formatAdminDate={formatAdminDate}
+              getAdminInitials={getAdminInitials}
+            />
+
+            <AdminContentSection
+              siteConfig={siteConfig}
+              home={home}
+              updateSiteConfig={updateSiteConfig}
+              updateHome={updateHome}
+            />
+
+            {/* Sidebar credit removed */}
           </div>
         </div>
       </div>

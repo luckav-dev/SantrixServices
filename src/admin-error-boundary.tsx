@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import './admin.css';
+import './admin-redesign.css';
+import { SafeImage } from './safe-image';
 
 const creatorLogoSrc = '/media/logocreadortienda.png';
 
@@ -50,32 +51,39 @@ class AdminErrorBoundaryInner extends Component<
 
     return (
       <section className="admin-auth">
-        <div className="admin-auth__card admin-auth__card--status">
-          <div className="admin-creator-mark admin-creator-mark--login">
-            <img src={creatorLogoSrc} alt="Luckav Development" />
+        <div className="admin-auth__layout admin-auth__layout--status">
+          <div className="admin-auth__showcase">
+            <div className="admin-auth__showcase-copy">
+              <p className="admin-auth__eyebrow">Admin Recovery</p>
+              <h1>Panel error</h1>
+              <p className="admin-auth__copy">
+                El dashboard ha fallado en esta pantalla, pero la tienda pública sigue intacta.
+              </p>
+            </div>
+            <div className="admin-auth__signature">
+              <SafeImage src={creatorLogoSrc} alt="Luckav Development" />
+            </div>
           </div>
-          <p className="admin-auth__eyebrow">Admin Recovery</p>
-          <h1>Panel error</h1>
-          <p className="admin-auth__copy">
-            El dashboard ha fallado en esta pantalla, pero la tienda publica sigue intacta.
-          </p>
-          <p className="admin-auth__error">
-            {this.state.errorMessage || 'Unknown admin error.'}
-          </p>
-          <div className="admin-auth__form">
-            <button
-              className="admin-button admin-button--primary"
-              type="button"
-              onClick={() => window.location.reload()}
-            >
-              Recargar admin
-            </button>
-            <Link className="admin-button admin-button--ghost" to="/admin/dashboard/overview">
-              Volver al overview
-            </Link>
-            <Link className="admin-button admin-button--ghost" to="/">
-              Ir a la tienda
-            </Link>
+
+          <div className="admin-auth__panel admin-auth__panel--status">
+            <p className="admin-auth__error">
+              {this.state.errorMessage || 'Unknown admin error.'}
+            </p>
+            <div className="admin-auth__actions">
+              <button
+                className="admin-button admin-button--primary"
+                type="button"
+                onClick={() => window.location.reload()}
+              >
+                Recargar admin
+              </button>
+              <Link className="admin-button admin-button--ghost" to="/admin/dashboard/overview">
+                Volver al overview
+              </Link>
+              <Link className="admin-button admin-button--ghost" to="/">
+                Ir a la tienda
+              </Link>
+            </div>
           </div>
         </div>
       </section>

@@ -35,6 +35,8 @@ import {
   getEnabledCustomerAuthProviders,
   getPrimaryCustomerAuthProvider,
 } from './customer-auth-utils';
+import { hasOptionalMedia } from './media';
+import { SafeImage } from './safe-image';
 
 function HeroVisual() {
   const { siteConfig } = useStore();
@@ -42,30 +44,36 @@ function HeroVisual() {
 
   return (
     <div className="w-1/2 h-full relative hidden xl:flex">
-      <div className="flex-col items-center justify-center absolute hidden xl:flex xl:top-10 2xl:top-20 left-30 w-[66px] h-auto float-slow">
-        <img src={brandAssets.heroSmallLogoSrc} alt={`Small ${studioName} Logo`} />
-        <img
-          src={brandAssets.heroSmallLogoSrc}
-          alt={`Small ${studioName} Logo`}
-          className="absolute top-0 left-0 blur-2xl opacity-45 -z-10"
-        />
-      </div>
-      <div className="flex-col items-center justify-center absolute hidden xl:flex xl:left-0 bottom-[15%] 2xl:left-[25%] w-[170px] h-auto float-medium">
-        <img src={brandAssets.heroMediumLogoSrc} alt={`Medium ${studioName} Logo`} />
-        <img
-          src={brandAssets.heroMediumLogoSrc}
-          alt={`Medium ${studioName} Logo`}
-          className="absolute top-0 left-0 blur-2xl opacity-45 -z-10"
-        />
-      </div>
-      <div className="flex-col items-center justify-center absolute hidden xl:flex xl:right-0 top-1/2 -translate-y-1/2 2xl:left-[50%] w-[416px] h-auto float-fast">
-        <img src={brandAssets.heroBigLogoSrc} alt={`Big ${studioName} Logo`} />
-        <img
-          src={brandAssets.heroBigLogoSrc}
-          alt={`Big ${studioName} Logo`}
-          className="absolute top-0 left-0 blur-2xl opacity-45 -z-10"
-        />
-      </div>
+      {hasOptionalMedia(brandAssets.heroSmallLogoSrc) ? (
+        <div className="flex-col items-center justify-center absolute hidden xl:flex xl:top-10 2xl:top-20 left-30 w-[66px] h-auto float-slow">
+          <SafeImage src={brandAssets.heroSmallLogoSrc} alt={`Small ${studioName} Logo`} />
+          <SafeImage
+            src={brandAssets.heroSmallLogoSrc}
+            alt={`Small ${studioName} Logo`}
+            className="absolute top-0 left-0 blur-2xl opacity-45 -z-10"
+          />
+        </div>
+      ) : null}
+      {hasOptionalMedia(brandAssets.heroMediumLogoSrc) ? (
+        <div className="flex-col items-center justify-center absolute hidden xl:flex xl:left-0 bottom-[15%] 2xl:left-[25%] w-[170px] h-auto float-medium">
+          <SafeImage src={brandAssets.heroMediumLogoSrc} alt={`Medium ${studioName} Logo`} />
+          <SafeImage
+            src={brandAssets.heroMediumLogoSrc}
+            alt={`Medium ${studioName} Logo`}
+            className="absolute top-0 left-0 blur-2xl opacity-45 -z-10"
+          />
+        </div>
+      ) : null}
+      {hasOptionalMedia(brandAssets.heroBigLogoSrc) ? (
+        <div className="flex-col items-center justify-center absolute hidden xl:flex xl:right-0 top-1/2 -translate-y-1/2 2xl:left-[50%] w-[416px] h-auto float-fast">
+          <SafeImage src={brandAssets.heroBigLogoSrc} alt={`Big ${studioName} Logo`} />
+          <SafeImage
+            src={brandAssets.heroBigLogoSrc}
+            alt={`Big ${studioName} Logo`}
+            className="absolute top-0 left-0 blur-2xl opacity-45 -z-10"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -73,7 +81,7 @@ function HeroVisual() {
 function LoginProviderIcon({ provider }: { provider: CustomerAuthProviderConfig }) {
   if (provider.logoSrc) {
     return (
-      <img
+      <SafeImage
         src={provider.logoSrc}
         alt={provider.logoAlt ?? provider.label}
         className="w-5 h-5 object-contain white-icon"
@@ -105,7 +113,7 @@ function VideoShowcase() {
       key={video.url}
     >
       <div className="w-full aspect-video sm:aspect-auto sm:h-[250px] rounded-2xl overflow-hidden border-2 border-white/5 group-hover:border-white/10 transition-colors duration-200">
-        <img src={videos.thumbs[index % videos.thumbs.length]} alt={video.name} className="w-full h-full object-cover" />
+        <SafeImage src={videos.thumbs[index % videos.thumbs.length]} alt={video.name} className="w-full h-full object-cover" />
       </div>
       <p className="text-white/70 group-hover:text-white font-medium text-sm sm:text-lg line-clamp-2 transition-colors duration-200">
         {video.name}
@@ -127,7 +135,7 @@ function VideoShowcase() {
       <div className="container flex flex-col items-center relative z-10">
         <div className="w-full max-w-2xl flex flex-col items-center">
           <a href={videos.channelHref} className="flex items-center gap-x-2 group mb-5">
-            <img src={videos.channelLogoSrc} alt={videos.channelLogoAlt} className="w-[134px] h-[28.93px]" />
+            <SafeImage src={videos.channelLogoSrc} alt={videos.channelLogoAlt} className="w-[134px] h-[28.93px]" />
             <i className="fa-solid fa-arrow-right text-white opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200" />
           </a>
           <p className="font-medium text-sm lg:text-base text-white/55 leading-relaxed text-center">
@@ -414,7 +422,7 @@ export function HomePage() {
           <HeroVisual />
           <div className="hero-copy flex flex-col items-center xl:items-start space-y-8">
             <div className="hero-copy__group flex flex-col items-center xl:items-start space-y-4">
-              <h1 className="hero-copy__heading uppercase font-['Plus_Jakarta_Sans'] text-white text-center xl:text-left">
+              <h1 className="hero-copy__heading uppercase text-white text-center xl:text-left">
                 {homeHero.titlePrefix}{' '}
                 <span
                   style={{
@@ -465,7 +473,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="w-full container mx-auto flex flex-col items-center gap-y-4 sm:gap-y-7 mt-8 sm:mt-20 lg:mt-28 relative z-10 px-4 sm:px-6 lg:px-8">
+      <section className="w-full container mx-auto flex flex-col items-center gap-y-4 sm:gap-y-7 mt-8 sm:mt-20 lg:mt-28 relative z-10 px-4 sm:px-6 lg:px-8 ">
         <DividerTitle label={storeText.featuredProductsLabel} />
         <div className="featured-strip w-full relative overflow-hidden flex items-center justify-center gap-2 sm:gap-4 mt-4 sm:mt-7 masked-container">
           <MarqueeRow speed="36s" className="gap-2 sm:gap-3 lg:gap-4 pl-8 sm:pl-20 lg:pl-32">
@@ -810,7 +818,7 @@ function ProductDetails({ product }: { product: Product }) {
 
           <div className="w-full flex flex-col items-start space-y-4 relative">
             <div className="store-product__gallery-frame w-full flex flex-col items-start overflow-hidden border-2 border-white/10 bg-black">
-              <img
+              <SafeImage
                 src={gallery[selectedImage] ?? product.image}
                 alt={product.title}
                 className="w-full h-full object-cover"
@@ -824,7 +832,7 @@ function ProductDetails({ product }: { product: Product }) {
                   key={image}
                 >
                   <button type="button" onClick={() => setSelectedImage(index)}>
-                    <img className="object-cover" src={image} alt="" />
+                    <SafeImage className="object-cover" src={image} alt="" />
                   </button>
                 </li>
               ))}
@@ -997,7 +1005,7 @@ function CustomerLoginPanel({
   return (
     <article className={`checkout-auth${standalone ? ' checkout-auth--standalone' : ''}`}>
       <div className="checkout-auth__brand">
-        <img src={customerLogin.brandLogoSrc} alt={customerLogin.brandLogoAlt} />
+        <SafeImage src={customerLogin.brandLogoSrc} alt={customerLogin.brandLogoAlt} />
         <span>&times;</span>
         <strong>{loginBrandLabel}</strong>
       </div>
@@ -1099,7 +1107,7 @@ export function CartPage() {
             <div className="checkout-cart-list">
               {cartLines.map((line) => (
                 <article className="checkout-cart-row" key={line.product.slug}>
-                  <img src={line.product.image} alt={line.product.title} />
+                  <SafeImage src={line.product.image} alt={line.product.title} />
                   <div className="checkout-cart-row__content">
                     <Link to={getProductHref(line.product.slug)}>{line.product.title}</Link>
                     <p>{line.product.categoryLabel}</p>
@@ -1294,7 +1302,7 @@ export function LoginPage() {
       </div>
       <article className="hidden">
         <div className="login-card__brand">
-          <img src={siteConfig.customerLogin.brandLogoSrc} alt="" />
+          <SafeImage src={siteConfig.customerLogin.brandLogoSrc} alt="" />
           <span>×</span>
           <LoginProviderIcon provider={primaryProvider} />
         </div>
@@ -1574,7 +1582,7 @@ export function CheckoutReturnPage() {
     status === 'success'
       ? siteConfig.storeText.checkoutSuccessDescription
       : message ||
-        'Estamos consultando el estado real del pedido con el proveedor de pago.';
+      'Estamos consultando el estado real del pedido con el proveedor de pago.';
 
   return (
     <section className="checkout-page checkout-page--success">

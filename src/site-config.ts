@@ -68,6 +68,36 @@ export interface HomeHeroConfig {
   secondaryCtaExternal: boolean;
 }
 
+export type EntryPopupMediaType = 'image' | 'video' | 'embed';
+
+export interface EntryPopupRowConfig {
+  label: string;
+  oldPrice: string;
+  newPrice: string;
+}
+
+export interface EntryPopupConfig {
+  enabled: boolean;
+  showOncePerSession: boolean;
+  badge: string;
+  title: string;
+  message: string;
+  infoText: string;
+  ctaLabel: string;
+  ctaHref: string;
+  dismissLabel: string;
+  logoSrc: string;
+  logoAlt: string;
+  mediaType: EntryPopupMediaType;
+  mediaSrc: string;
+  mediaPosterSrc: string;
+  mediaAlt: string;
+  accentColor: string;
+  quantityLabel: string;
+  priceLabel: string;
+  rows: EntryPopupRowConfig[];
+}
+
 export interface HeaderConfig {
   homeLabel: string;
   categoryMenuLabel: string;
@@ -244,6 +274,11 @@ export interface StoreTextConfig {
   notFoundButtonLabel: string;
 }
 
+export interface ThemeConfig {
+  primaryColor: string;
+  accentColor: string;
+}
+
 export interface AdminAccessConfig {
   username: string;
   password: string;
@@ -252,9 +287,11 @@ export interface AdminAccessConfig {
 export interface SiteConfig {
   brandName: string;
   studioName: string;
+  theme: ThemeConfig;
   brandAssets: BrandAssetsConfig;
   header: HeaderConfig;
   discountBanner: DiscountBannerConfig;
+  entryPopup: EntryPopupConfig;
   homeHero: HomeHeroConfig;
   footer: FooterConfig;
   whyChooseUs: WhyChooseUsSectionConfig;
@@ -276,8 +313,12 @@ function cloneArray<T>(items: T[]) {
 
 export function buildDefaultSiteConfig(): SiteConfig {
   return {
-    brandName: '0RESMON',
-    studioName: '0Resmon Studio',
+    brandName: 'LUCKAV PRODUCTS',
+    studioName: 'LUCKAV Studio',
+    theme: {
+      primaryColor: '#ff334f',
+      accentColor: '#ff4c63',
+    },
     brandAssets: {
       headerLogoSrc: '/media/logo.png',
       headerLogoAlt: '0Resmon Logo',
@@ -316,14 +357,39 @@ export function buildDefaultSiteConfig(): SiteConfig {
       endAt: '2026-04-03T11:59:59+01:00',
       backgroundImageSrc: '/media/big-discount-new-banner-2.png',
     },
+    entryPopup: {
+      enabled: false,
+      showOncePerSession: true,
+      badge: 'PRICE DROP & TUTORIAL',
+      title: 'Featured launch offer',
+      message: 'Highlight a launch, tutorial, bundle or seasonal campaign right when the customer enters the storefront.',
+      infoText: 'Add a video, image or embed and combine it with offer rows to push the campaign without changing the page layout.',
+      ctaLabel: 'Buy now',
+      ctaHref: '/category/open-source',
+      dismissLabel: 'Dismiss, maybe later',
+      logoSrc: '/media/discount-banner-logo.png',
+      logoAlt: 'Popup Logo',
+      mediaType: 'image',
+      mediaSrc: '/media/big-discount-new-banner-2.png',
+      mediaPosterSrc: '',
+      mediaAlt: 'Launch Offer',
+      accentColor: '#2ee96d',
+      quantityLabel: 'Quantity',
+      priceLabel: 'New Prices',
+      rows: [
+        { label: '1 KEY', oldPrice: '6.50EUR', newPrice: '5.45EUR' },
+        { label: '5 KEYS', oldPrice: '5.46EUR', newPrice: '4.90EUR' },
+        { label: '10 KEYS', oldPrice: '5.00EUR', newPrice: '4.50EUR' },
+      ],
+    },
     homeHero: {
       badgeHref: 'https://www.youtube.com/@0resmonstudio',
       badgeLogoSrc: '/media/youtube-logo.png',
       badgeLogoAlt: 'YouTube Logo',
       badgeText: '',
       titlePrefix: 'Take your server beyond limits with',
-      titleHighlight: '0RESMON',
-      titleSuffix: 'Resources',
+      titleHighlight: 'LUCKAV',
+      titleSuffix: 'PRODUCTS',
       description:
         'Carefully crafted resources focused on performance, stability, and seamless server integration.',
       primaryCtaLabel: 'Browse Products',

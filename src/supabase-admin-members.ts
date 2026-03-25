@@ -20,8 +20,12 @@ async function invokeAdminMembersFunction<T>(body: Record<string, unknown>) {
     return null;
   }
 
+  const { data: sessionData } = await client.auth.getSession();
+  const token = sessionData.session?.access_token;
+
   const { data, error } = await client.functions.invoke('admin-members', {
     body,
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 
   if (error) {
