@@ -1,12 +1,10 @@
-/* eslint-disable react-refresh/only-export-components */
 import {
-  createContext,
-  useContext,
   useEffect,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
+import { StoreContext } from './store-context';
 import {
   buildDefaultSiteConfig,
   type CustomerAuthProviderId,
@@ -171,7 +169,7 @@ interface AdminSession {
 
 type Updater<T> = T | ((current: T) => T);
 
-interface StoreContextValue {
+export interface StoreContextValue {
   currency: CurrencyCode;
   setCurrency: (currency: CurrencyCode) => void;
   categories: Category[];
@@ -712,7 +710,7 @@ export function getPrimaryCategory(product: Product) {
   return product.categories[0] ?? product.categoryId;
 }
 
-const StoreContext = createContext<StoreContextValue | null>(null);
+// Context defined in store-context.tsx
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const remoteSyncConfigured = hasSupabaseSync();
@@ -1100,11 +1098,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    void bootstrapRemoteSync();
+    const failsafeTimer = window.setTimeout(() => {
+      if (isActive && !remoteSyncReadyRef.current) {
+        console.warn('Supabase sync is taking too long, forcing storefront ready state.');
+        setIsStorefrontReady(true);
+      }
+    }, 3000);
+
+    if (remoteSyncConfigured) {
+      void bootstrapRemoteSync();
+    } else {
+      setIsStorefrontReady(true);
+    }
 
     return () => {
       isActive = false;
       remoteSyncReadyRef.current = false;
+      window.clearTimeout(failsafeTimer);
       if (remotePersistTimerRef.current !== null) {
         window.clearTimeout(remotePersistTimerRef.current);
         remotePersistTimerRef.current = null;
@@ -1112,6 +1122,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribe?.();
     };
   }, [emptyStorefront, remoteSyncConfigured]);
+
+  // Failsafe: if auth/data restore hangs, don't leave the admin locked forever.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isStorefrontReady) {
+        setIsStorefrontReady(true);
+      }
+      if (!isAdminAuthReady) {
+        setIsAdminAuthReady(true);
+      }
+    }, 3500);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isStorefrontReady, isAdminAuthReady]);
+
+  // Extra safeguard for the private dashboard route.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (window.location.pathname.startsWith('/admin/dashboard') && (!isStorefrontReady || !isAdminAuthReady)) {
+        setIsStorefrontReady(true);
+        setIsAdminAuthReady(true);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isStorefrontReady, isAdminAuthReady]);
 
   useEffect(() => {
     if (
@@ -1207,7 +1244,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     recentReviews: mergeReviewsById(recentReviews, myReviews),
     purchasedProductSlugs,
     myReviews,
-    isStorefrontReady: isStorefrontReady && isAssetsReady,
+    // Expose data readiness here. The public storefront applies its own asset gate in SiteShell,
+    // but the admin must not depend on storefront image preloading to become accessible.
+    isStorefrontReady,
     isAssetsReady,
     setIsAssetsReady,
     isCustomerAuthReady,
@@ -1266,7 +1305,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         try {
           if (providerId === 'google' || providerId === 'discord') {
             const redirectTo = `${window.location.origin}/auth/callback?provider=${providerId}&next=${encodeURIComponent(redirectPath)}`;
-            await signInStorefrontCustomerWithOAuth(providerId, redirectTo);
+            const oauthPayload = await signInStorefrontCustomerWithOAuth(providerId, redirectTo);
+            if (!oauthPayload?.url) {
+              return {
+                ok: false,
+                message: `No se pudo preparar el acceso con ${providerId}.`,
+              };
+            }
+
+            window.location.assign(oauthPayload.url);
             return { ok: true };
           }
 
@@ -1529,7 +1576,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       try {
         const redirectTo = `${window.location.origin}/admin/dashboard/overview`;
-        await signInAdminWithOAuth(provider, redirectTo);
+        const oauthPayload = await signInAdminWithOAuth(provider, redirectTo);
+        if (!oauthPayload?.url) {
+          return {
+            ok: false,
+            message: `No se pudo preparar el acceso con ${provider}.`,
+          };
+        }
+
+        window.location.assign(oauthPayload.url);
         return { ok: true };
       } catch (error) {
         return {
@@ -1716,11 +1771,4 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
-export function useStore() {
-  const context = useContext(StoreContext);
-  if (!context) {
-    throw new Error('useStore must be used within StoreProvider');
-  }
-
-  return context;
-}
+// useStore moved to store-context.tsx

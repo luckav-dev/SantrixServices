@@ -16,6 +16,22 @@ interface AdminMembershipRow {
   role: string;
 }
 
+function getProviderLabel(provider: 'google' | 'discord') {
+  return provider === 'google' ? 'Google' : 'Discord';
+}
+
+function normalizeOAuthProviderError(provider: 'google' | 'discord', message: string) {
+  if (/provider is not enabled|unsupported provider/i.test(message)) {
+    return `${getProviderLabel(provider)} no está habilitado en Supabase Auth. Actívalo en Authentication > Providers y añade tu URL de callback del admin.`;
+  }
+
+  if (/redirect/i.test(message) && /url/i.test(message)) {
+    return `La redirección de ${getProviderLabel(provider)} no está bien configurada. Revisa las Redirect URLs del admin en Supabase Auth.`;
+  }
+
+  return message;
+}
+
 async function fetchMembership(userId: string, email: string | null) {
   const client = getAdminSupabaseClient();
   if (!client || !email) {
@@ -74,19 +90,28 @@ export async function signInAdminWithPassword(email: string, password: string) {
 export async function signInAdminWithOAuth(provider: 'google' | 'discord', redirectTo: string) {
   const client = getAdminSupabaseClient();
   if (!client) {
-    return;
+    return null;
   }
 
-  const { error } = await client.auth.signInWithOAuth({
+  const { data, error } = await client.auth.signInWithOAuth({
     provider,
     options: {
       redirectTo,
+      skipBrowserRedirect: true,
     },
   });
 
   if (error) {
-    throw error;
+    throw new Error(normalizeOAuthProviderError(provider, error.message));
   }
+
+  if (!data?.url) {
+    throw new Error(`Supabase no devolvió una URL de acceso para ${getProviderLabel(provider)}.`);
+  }
+
+  return {
+    url: data.url,
+  };
 }
 
 export async function restoreRemoteAdminSession() {

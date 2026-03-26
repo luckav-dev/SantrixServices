@@ -1,14 +1,17 @@
 import { startTransition, useDeferredValue, useEffect, useState } from 'react';
 import {
+  BadgeCheck,
   CirclePlay,
   ExternalLink,
   Lock,
+  LogOut,
   Search,
   ShieldCheck,
   ShoppingCart,
   Sparkles,
+  UserRound,
 } from 'lucide-react';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams, type Location } from 'react-router-dom';
 import {
   AccordionPanel,
   DividerTitle,
@@ -23,7 +26,8 @@ import {
   ReviewSection,
   SectionHeading,
 } from './components';
-import { formatPrice, getProductHref, type Product, useStore } from './store';
+import { formatPrice, getProductHref, type Product } from './store';
+import { useStore } from './store-context';
 import { completeFiveMHeadlessLogin } from './supabase-customer';
 import {
   captureRemotePayPalOrder,
@@ -94,6 +98,20 @@ function LoginProviderIcon({ provider }: { provider: CustomerAuthProviderConfig 
   }
 
   return <i className="fa-solid fa-right-to-bracket text-base" />;
+}
+
+function buildAccountInitials(value: string | null | undefined) {
+  const parts = (value ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (!parts.length) {
+    return 'ST';
+  }
+
+  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('');
 }
 
 function VideoShowcase() {
@@ -172,6 +190,7 @@ function ProductReviewPanel({ product }: { product: Product }) {
     user,
   } = useStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const existingReview = myReviews.find((review) => review.productSlug === product.slug) ?? null;
   const productReviewMap = new Map<string, (typeof recentReviews)[number]>();
 
@@ -259,7 +278,10 @@ function ProductReviewPanel({ product }: { product: Product }) {
               <button
                 className="checkout-summary__secondary px-6"
                 type="button"
-                onClick={() => navigate('/login')}
+                onClick={() =>
+                  navigate('/login', {
+                    state: { backgroundLocation: location },
+                  })}
               >
                 Ir al login
               </button>
@@ -1000,48 +1022,45 @@ function CustomerLoginPanel({
     getPrimaryCustomerAuthProvider(customerLogin) ??
     buildCustomerProviderFallback('fivem');
   const providerList = enabledProviders.length ? enabledProviders : [primaryProvider];
-  const loginBrandLabel = customerLogin.providerLabel || primaryProvider.label;
 
   return (
-    <article className={`checkout-auth${standalone ? ' checkout-auth--standalone' : ''}`}>
-      <div className="checkout-auth__brand">
-        <SafeImage src={customerLogin.brandLogoSrc} alt={customerLogin.brandLogoAlt} />
-        <span>&times;</span>
-        <strong>{loginBrandLabel}</strong>
-      </div>
-
-      <div className="checkout-auth__content">
-        <div className="checkout-auth__intro">
+    <article className={`checkout-auth${standalone ? ' checkout-auth--standalone checkout-auth--modal' : ''}`}>
+      <div className={`checkout-auth__content${standalone ? ' checkout-auth__content--standalone' : ''}`}>
+        <div className={`checkout-auth__intro${standalone ? ' checkout-auth__intro--standalone' : ''}`}>
+          {standalone ? <span className="checkout-auth__eyebrow">Secure access</span> : null}
           <h2>{customerLogin.routeTitle}</h2>
           <p>{customerLogin.routeSubtitle}</p>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className={`checkout-auth__providers${standalone ? ' checkout-auth__providers--standalone' : ''}`}>
           {providerList.map((provider) => {
             const isCurrentBusy = isBusy && busyProviderId === provider.id;
 
-            return (
-              <button
-                className="checkout-auth__button flex items-center justify-center gap-x-3"
-                key={provider.id}
-                type="button"
-                onClick={() => void onLogin(provider.id)}
-                disabled={isBusy}
-              >
-                <LoginProviderIcon provider={provider} />
-                {isCurrentBusy ? 'Connecting...' : provider.buttonLabel || customerLogin.buttonLabel}
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  className={`checkout-auth__button checkout-auth__button--${provider.id}`}
+                  key={provider.id}
+                  type="button"
+                  onClick={() => void onLogin(provider.id)}
+                  disabled={isBusy}
+                >
+                  {isCurrentBusy ? 'Connecting...' : provider.buttonLabel || customerLogin.buttonLabel}
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="checkout-auth__meta">
-          <small>{customerLogin.helperText}</small>
-          {error ? <small className="text-[#ff95a2]">{error}</small> : null}
+          {standalone ? (
+            <p className="checkout-auth__provider-note">Choose a secure provider to continue with your basket.</p>
+          ) : null}
+
+        <div className={`checkout-auth__meta${standalone ? ' checkout-auth__meta--standalone' : ''}`}>
+          <small className="checkout-auth__meta-copy">{customerLogin.helperText}</small>
+          {error ? <small className="checkout-auth__meta-error text-[#ff95a2]">{error}</small> : null}
         </div>
       </div>
 
-      <p className="checkout-auth__support">{storeText.checkoutSupportText}</p>
+      <p className={`checkout-auth__support${standalone ? ' checkout-auth__support--standalone' : ''}`}>{storeText.checkoutSupportText}</p>
     </article>
   );
 }
@@ -1068,9 +1087,11 @@ export function CartPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { storeText } = siteConfig;
+  const loginRedirectHref = `/login?next=${encodeURIComponent('/checkout/basket')}`;
 
   const taxEur = 0;
   const totalEur = subtotalEur + taxEur;
+  const totalItemsCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
   const hasMixedProviders = new Set(cartLines.map((line) => line.product.checkoutProvider)).size > 1;
   const checkoutProviderLabel =
     cartLines[0]?.product.checkoutProvider === 'tebex'
@@ -1098,19 +1119,36 @@ export function CartPage() {
     );
   }
 
+  if (isCustomerAuthReady && !user) {
+    return <Navigate to={loginRedirectHref} replace />;
+  }
+
   return (
     <section className="checkout-page">
       <div className="checkout-page__stage">
-        <h1>{storeText.checkoutBasketTitle}</h1>
-        {user ? (
+        <div className="checkout-page__heading">
+          <small>Secure checkout</small>
+          <h1>{storeText.checkoutBasketTitle}</h1>
+          <p>
+            {cartLines.length
+              ? `${totalItemsCount} item${totalItemsCount === 1 ? '' : 's'} listos para validar y pagar con seguridad.`
+              : 'Tu cesta esta vacia por ahora. Cuando anadas productos, los veras aqui.'}
+          </p>
+        </div>
+        {isCustomerAuthReady ? (
           cartLines.length ? (
             <div className="checkout-cart-list">
               {cartLines.map((line) => (
                 <article className="checkout-cart-row" key={line.product.slug}>
-                  <SafeImage src={line.product.image} alt={line.product.title} />
+                  <Link className="checkout-cart-row__media" to={getProductHref(line.product.slug)}>
+                    <SafeImage src={line.product.image} alt={line.product.title} />
+                  </Link>
                   <div className="checkout-cart-row__content">
+                    <div className="checkout-cart-row__meta">
+                      <p>{line.product.categoryLabel}</p>
+                      <span>{line.product.checkoutProvider === 'tebex' ? 'Tebex' : line.product.checkoutProvider === 'paypal' ? 'PayPal' : 'External'}</span>
+                    </div>
                     <Link to={getProductHref(line.product.slug)}>{line.product.title}</Link>
-                    <p>{line.product.categoryLabel}</p>
                     <FrameworkBadges frameworks={line.product.frameworks} />
                   </div>
                   <div className="checkout-cart-row__actions">
@@ -1129,7 +1167,10 @@ export function CartPage() {
                         +
                       </button>
                     </div>
-                    <strong>{formatPrice(line.subtotalEur, currency)}</strong>
+                    <div className="checkout-cart-row__price">
+                      <small>Subtotal</small>
+                      <strong>{formatPrice(line.subtotalEur, currency)}</strong>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -1160,73 +1201,89 @@ export function CartPage() {
           </div>
         ) : user ? (
           <div className="checkout-summary summary-card checkout-summary-card">
-            <h2>{storeText.checkoutSummaryTitle}</h2>
-            <div className="summary-row">
-              <span>{storeText.checkoutItemsTotalLabel}</span>
-              <strong>{formatPrice(subtotalEur, currency)}</strong>
+            <div className="checkout-summary__header">
+              <small>Checkout</small>
+              <h2>{storeText.checkoutSummaryTitle}</h2>
+              <p>{totalItemsCount} item{totalItemsCount === 1 ? '' : 's'} listos para confirmar.</p>
             </div>
-            <div className="summary-row">
-              <span>{storeText.checkoutTaxesLabel}</span>
-              <strong>{formatPrice(taxEur, currency)}</strong>
-            </div>
-
-            <div className="summary-row summary-row--total">
-              <span>{storeText.checkoutEstimatedTotalLabel}</span>
-              <strong>{formatPrice(totalEur, currency)}</strong>
-            </div>
-            {checkoutProviderLabel ? (
+            <div className="checkout-summary__surface">
               <div className="summary-row">
-                <span>Provider</span>
-                <strong>{checkoutProviderLabel}</strong>
+                <span>{storeText.checkoutItemsTotalLabel}</span>
+                <strong>{formatPrice(subtotalEur, currency)}</strong>
               </div>
-            ) : null}
-            {requiresIdentity ? (
-              <p className="text-sm text-white/55">
-                Este checkout exige identidad validada antes del pago.
-              </p>
-            ) : null}
+              <div className="summary-row">
+                <span>{storeText.checkoutTaxesLabel}</span>
+                <strong>{formatPrice(taxEur, currency)}</strong>
+              </div>
 
-            <div className="checkout-summary__actions">
-              <button
-                className="checkout-summary__primary"
-                disabled={!cartLines.length || isCheckoutBusy || hasMixedProviders}
-                type="button"
-                onClick={async () => {
-                  setCheckoutError('');
-                  setIsCheckoutBusy(true);
-                  const result = await completeCheckout();
-                  setIsCheckoutBusy(false);
+              <div className="summary-row summary-row--total">
+                <span>{storeText.checkoutEstimatedTotalLabel}</span>
+                <strong>{formatPrice(totalEur, currency)}</strong>
+              </div>
 
-                  if (result.ok) {
-                    if (result.redirectUrl) {
-                      window.location.assign(result.redirectUrl);
+              {(checkoutProviderLabel || requiresIdentity) ? (
+                <div className="checkout-summary__badges">
+                  {checkoutProviderLabel ? (
+                    <span className="checkout-summary__badge">
+                      Provider: <strong>{checkoutProviderLabel}</strong>
+                    </span>
+                  ) : null}
+                  {requiresIdentity ? (
+                    <span className="checkout-summary__badge checkout-summary__badge--secure">
+                      Identity required
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {requiresIdentity ? (
+                <div className="checkout-summary__notice">
+                  Este checkout exige identidad validada antes del pago.
+                </div>
+              ) : null}
+
+              <div className="checkout-summary__actions">
+                <button
+                  className="checkout-summary__primary"
+                  disabled={!cartLines.length || isCheckoutBusy || hasMixedProviders}
+                  type="button"
+                  onClick={async () => {
+                    setCheckoutError('');
+                    setIsCheckoutBusy(true);
+                    const result = await completeCheckout();
+                    setIsCheckoutBusy(false);
+
+                    if (result.ok) {
+                      if (result.redirectUrl) {
+                        window.location.assign(result.redirectUrl);
+                        return;
+                      }
+
+                      setCompletedOrderId(result.orderId ?? null);
+                      setCompleted(true);
                       return;
                     }
 
-                    setCompletedOrderId(result.orderId ?? null);
-                    setCompleted(true);
-                    return;
-                  }
-
-                  setCheckoutError(result.message ?? 'No se pudo completar el pedido.');
-                }}
-              >
-                {isCheckoutBusy ? 'Processing...' : storeText.checkoutCompletePaymentLabel}
-              </button>
-              <button
-                className="checkout-summary__secondary"
-                type="button"
-                onClick={() => navigate('/')}
-              >
-                {storeText.checkoutContinueShoppingLabel}
-              </button>
+                    setCheckoutError(result.message ?? 'No se pudo completar el pedido.');
+                  }}
+                >
+                  {isCheckoutBusy ? 'Processing...' : storeText.checkoutCompletePaymentLabel}
+                </button>
+                <button
+                  className="checkout-summary__secondary"
+                  type="button"
+                  onClick={() => navigate('/')}
+                >
+                  {storeText.checkoutContinueShoppingLabel}
+                </button>
+              </div>
+              {hasMixedProviders ? (
+                <p className="checkout-summary__error">
+                  No puedes pagar juntos productos con proveedores distintos. Separa la cesta por proveedor.
+                </p>
+              ) : null}
+              {checkoutError ? <p className="checkout-summary__error">{checkoutError}</p> : null}
             </div>
-            {hasMixedProviders ? (
-              <p className="text-sm text-[#ff95a2]">
-                No puedes pagar juntos productos con proveedores distintos. Separa la cesta por proveedor.
-              </p>
-            ) : null}
-            {checkoutError ? <p className="text-sm text-[#ff95a2]">{checkoutError}</p> : null}
           </div>
         ) : (
           <CustomerLoginPanel
@@ -1251,54 +1308,140 @@ export function CartPage() {
   );
 }
 
-export function LoginPage() {
-  const { isCustomerAuthReady, login, siteConfig, storefrontSource } = useStore();
+export function LoginPage({ modal = false }: { modal?: boolean }) {
+  const { isCustomerAuthReady, login, siteConfig, storefrontSource, user } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [isBusy, setIsBusy] = useState(false);
   const [busyProviderId, setBusyProviderId] = useState<CustomerAuthProviderId | null>(null);
   const [error, setError] = useState('');
+  const state = location.state as { backgroundLocation?: Location } | undefined;
+  const backgroundLocation = state?.backgroundLocation;
   const primaryProvider =
     getPrimaryCustomerAuthProvider(siteConfig.customerLogin) ??
     buildCustomerProviderFallback('fivem');
+  const nextPath = searchParams.get('next')?.startsWith('/')
+    ? searchParams.get('next')!
+    : '/';
+
+  useEffect(() => {
+    if (!modal) {
+      return undefined;
+    }
+
+    document.body.classList.add('login-modal-open');
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.classList.remove('login-modal-open');
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [modal]);
+
+  function handleClose() {
+    if (backgroundLocation) {
+      navigate(-1);
+      return;
+    }
+
+    navigate('/', { replace: true });
+  }
+
+  function renderPanel() {
+    return (
+      <CustomerLoginPanel
+        standalone
+        error={error}
+        isBusy={isBusy}
+        busyProviderId={busyProviderId}
+        onLogin={async (providerId) => {
+          setError('');
+          setIsBusy(true);
+          setBusyProviderId(providerId);
+          const result = await login(providerId, { redirectPath: nextPath });
+          setIsBusy(false);
+          setBusyProviderId(null);
+          if (!result.ok) {
+            setError(result.message ?? 'No se pudo iniciar sesión.');
+            return;
+          }
+
+          if (storefrontSource !== 'supabase') {
+            navigate(nextPath, { replace: true });
+          }
+        }}
+      />
+    );
+  }
 
   if (!isCustomerAuthReady) {
+    const loadingContent = (
+      <div className="checkout-stage__placeholder">
+        <div className="checkout-stage__loader" />
+      </div>
+    );
+
+    if (modal) {
+      return (
+        <div className="login-modal" role="presentation" onClick={handleClose}>
+        <div className="login-modal__backdrop" />
+        <div
+          className="login-modal__dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label={siteConfig.customerLogin.routeTitle}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="login-modal__shell">
+            {loadingContent}
+          </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <section className="login-page">
         <div className="login-page__shell">
-          <div className="checkout-stage__placeholder">
-            <div className="checkout-stage__loader" />
-          </div>
+          {loadingContent}
         </div>
       </section>
     );
   }
 
-  return (
-    <section className="login-page">
-      <div className="login-page__shell">
-        <CustomerLoginPanel
-          standalone
-          error={error}
-          isBusy={isBusy}
-          busyProviderId={busyProviderId}
-          onLogin={async (providerId) => {
-            setError('');
-            setIsBusy(true);
-            setBusyProviderId(providerId);
-            const result = await login(providerId, { redirectPath: location.pathname });
-            setIsBusy(false);
-            setBusyProviderId(null);
-            if (!result.ok) {
-              setError(result.message ?? 'No se pudo iniciar sesión.');
-              return;
-            }
+  if (user) {
+    return <Navigate to={nextPath} replace />;
+  }
 
-            if (storefrontSource !== 'supabase') {
-              navigate('/');
-            }
-          }}
-        />
+  if (modal) {
+    return (
+      <div className="login-modal" role="presentation" onClick={handleClose}>
+        <div className="login-modal__backdrop" />
+        <div
+          className="login-modal__dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label={siteConfig.customerLogin.routeTitle}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="login-modal__shell">
+            {renderPanel()}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <section className="login-page auth-callback-page">
+      <div className="login-page__shell">
+        {renderPanel()}
       </div>
       <article className="hidden">
         <div className="login-card__brand">
@@ -1314,9 +1457,118 @@ export function LoginPage() {
   );
 }
 
+export function AccountPage() {
+  const {
+    cartCount,
+    isCustomerAuthReady,
+    myReviews,
+    purchasedProductSlugs,
+    siteConfig,
+    user,
+    logout,
+  } = useStore();
+  const navigate = useNavigate();
+  const loginRedirectHref = `/login?next=${encodeURIComponent('/account')}`;
+  const initials = buildAccountInitials(user?.name ?? siteConfig.brandName);
+
+  if (!isCustomerAuthReady) {
+    return (
+      <section className="account-page">
+        <div className="account-page__shell">
+          <div className="checkout-stage__placeholder">
+            <div className="checkout-stage__loader" />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to={loginRedirectHref} replace />;
+  }
+
+  return (
+    <section className="account-page">
+      <div className="account-page__shell">
+        <article className="summary-card account-card">
+          <div className="account-card__hero">
+            <span className="account-card__avatar">{initials}</span>
+            <div className="account-card__copy">
+              <small>Cuenta conectada</small>
+              <h1>{user.name}</h1>
+              {user.email ? <p>{user.email}</p> : null}
+              <div className="account-card__meta">
+                <span className="account-card__provider-pill">
+                  <BadgeCheck size={14} />
+                  {user.provider || 'Cliente'}
+                </span>
+                <span className="account-card__status-pill">
+                  <ShieldCheck size={14} />
+                  Sesion activa
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="account-card__stats">
+            <div className="account-card__stat">
+              <strong>{cartCount}</strong>
+              <span>Productos en cesta</span>
+            </div>
+            <div className="account-card__stat">
+              <strong>{purchasedProductSlugs.length}</strong>
+              <span>Productos comprados</span>
+            </div>
+            <div className="account-card__stat">
+              <strong>{myReviews.length}</strong>
+              <span>Resenas verificadas</span>
+            </div>
+          </div>
+
+          <div className="account-card__quick-links">
+            <Link className="account-card__quick-link" to="/checkout/basket">
+              <ShoppingCart size={18} />
+              <div>
+                <strong>Ir a mi cesta</strong>
+                <span>Revisar productos y continuar el checkout</span>
+              </div>
+            </Link>
+            <Link className="account-card__quick-link" to="/terms-conditions-and-refund-policy">
+              <Lock size={18} />
+              <div>
+                <strong>Ver terminos</strong>
+                <span>Refund policy, legal y condiciones</span>
+              </div>
+            </Link>
+          </div>
+
+          <div className="account-card__actions">
+            <button
+              className="account-card__action account-card__action--ghost"
+              type="button"
+              onClick={async () => {
+                await logout();
+                navigate('/', { replace: true });
+              }}
+            >
+              <LogOut size={18} />
+              <span>Cerrar sesion</span>
+            </button>
+            <Link className="account-card__action account-card__action--primary" to="/">
+              <UserRound size={18} />
+              <span>Volver a la tienda</span>
+            </Link>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
 export function AuthCallbackPage() {
   const { completeFiveMLogin, isCustomerAuthReady, storefrontSource, user } = useStore();
   const navigate = useNavigate();
+  const routeLocation = useLocation();
   const [searchParams] = useSearchParams();
   const [error, setError] = useState('');
   const provider = (searchParams.get('provider') ?? '').toLowerCase();
@@ -1405,39 +1657,54 @@ export function AuthCallbackPage() {
   ]);
 
   return (
-    <section className="login-page">
-      <div className="login-page__shell">
-        <article className="checkout-auth checkout-auth--standalone">
-          <div className="checkout-auth__content">
-            <div className="checkout-auth__intro">
-              <h2>Completing sign in</h2>
-              <p>
+    <section className="login-page auth-callback-page">
+      <div className="login-page__shell auth-callback-page__shell">
+        <article className="auth-callback-card">
+          <div className="auth-callback-card__header">
+            <span className="auth-callback-card__eyebrow">
+              {provider === 'fivem' ? 'FiveM access' : 'Secure session'}
+            </span>
+            <h1>Completing sign in</h1>
+            <p>
                 {provider === 'fivem'
                   ? 'Validando la identidad de FiveM con Tebex y sincronizando tu sesión.'
                   : 'Restaurando tu sesión segura con Supabase.'}
-              </p>
+            </p>
+          </div>
+
+          {!error ? (
+            <div className="auth-callback-card__loading">
+              <div className="premium-loader premium-loader--compact">
+                <div className="premium-loader__spinner-container">
+                  <div className="premium-loader__glow" />
+                  <div className="premium-loader__spinner" />
+                  <div className="premium-loader__spinner-inner" />
+                  <ShieldCheck className="premium-loader__icon" size={20} />
+                </div>
+              </div>
+
+              <div className="auth-callback-card__status">
+                <span className="auth-callback-card__status-dot" />
+                <strong>Conectando tu cuenta</strong>
+                <small>Esto suele tardar solo unos segundos.</small>
+              </div>
             </div>
-
-            {!error ? (
-              <div className="checkout-stage__placeholder">
-                <div className="checkout-stage__loader" />
-              </div>
-            ) : (
-              <div className="checkout-auth__meta">
-                <small className="text-[#ff95a2]">{error}</small>
-              </div>
-            )}
-
-            {error ? (
+          ) : (
+            <div className="auth-callback-card__error">
+              <small>{error}</small>
               <button
-                className="checkout-summary__secondary"
+                className="checkout-summary__secondary auth-callback-card__back"
                 type="button"
-                onClick={() => navigate('/login', { replace: true })}
+                onClick={() =>
+                  navigate('/login', {
+                    replace: true,
+                    state: { backgroundLocation: routeLocation },
+                  })}
               >
                 Volver al login
               </button>
-            ) : null}
-          </div>
+            </div>
+          )}
         </article>
       </div>
     </section>

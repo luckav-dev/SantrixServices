@@ -14,6 +14,12 @@ import {
   getStoreId,
   requireAuthenticatedUser,
 } from '../_shared/supabase.ts';
+import {
+  extractTebexErrorMessage,
+  getRequestIPv4,
+  getTebexHeaders,
+  readTebexPayload,
+} from '../_shared/tebex.ts';
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -37,6 +43,7 @@ Deno.serve(async (request) => {
     const adminClient = getServiceSupabaseClient();
     const storeId = getStoreId();
     const siteUrl = getSiteUrl(request);
+    const clientIpv4 = getRequestIPv4(request);
     if (!siteUrl) {
       return jsonResponse({ error: 'Missing SITE_URL for checkout redirects.' }, 500);
     }
@@ -94,6 +101,7 @@ Deno.serve(async (request) => {
     const basketCreatePayload = {
       complete_url: successUrl.toString(),
       cancel_url: cancelUrl.toString(),
+      ip_address: clientIpv4 || undefined,
       username: fiveMIdentity?.provider_username ?? undefined,
       custom: {
         store_id: storeId,
@@ -106,30 +114,38 @@ Deno.serve(async (request) => {
       `https://headless.tebex.io/api/accounts/${webstoreId}/baskets`,
       {
         method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: getTebexHeaders(),
         body: JSON.stringify(basketCreatePayload),
       },
     );
 
-    const basketPayload = await basketResponse.json();
+    const basketPayload = await readTebexPayload(basketResponse);
     if (!basketResponse.ok) {
+      const basketErrorMessage = extractTebexErrorMessage(
+        basketPayload,
+        'Could not create the Tebex basket.',
+      );
+
       await updateOrderPaymentState({
         adminClient,
         orderId: pendingOrder.orderId,
         storeId,
         provider: 'tebex',
         status: 'failed',
-        providerStatus: basketPayload?.error_message ?? 'basket_create_failed',
+        providerStatus: basketErrorMessage || 'basket_create_failed',
         providerMetadata: basketPayload ?? {},
       });
 
       return jsonResponse(
         {
-          error: basketPayload?.error_message ?? 'Could not create the Tebex basket.',
+          error: basketErrorMessage,
           details: basketPayload,
+          debug: {
+            siteUrl,
+            successUrl: successUrl.toString(),
+            cancelUrl: cancelUrl.toString(),
+            clientIpv4: clientIpv4 || null,
+          },
         },
         basketResponse.status,
       );
@@ -150,10 +166,7 @@ Deno.serve(async (request) => {
         `https://headless.tebex.io/api/accounts/${webstoreId}/baskets/${basketIdent}/packages`,
         {
           method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          },
+          headers: getTebexHeaders(),
           body: JSON.stringify({
             package_id: line.tebexPackageId,
             quantity: line.quantity,
@@ -165,24 +178,27 @@ Deno.serve(async (request) => {
         },
       );
 
-      const packagePayload = await packageResponse.json();
+      const packagePayload = await readTebexPayload(packageResponse);
       if (!packageResponse.ok) {
+        const packageErrorMessage = extractTebexErrorMessage(
+          packagePayload,
+          `Could not add ${line.title} to the Tebex basket.`,
+        );
+
         await updateOrderPaymentState({
           adminClient,
           orderId: pendingOrder.orderId,
           storeId,
           provider: 'tebex',
           status: 'failed',
-          providerStatus: packagePayload?.error_message ?? 'basket_package_failed',
+          providerStatus: packageErrorMessage || 'basket_package_failed',
           providerOrderId: String(basketIdent),
           providerMetadata: packagePayload ?? {},
         });
 
         return jsonResponse(
           {
-            error:
-              packagePayload?.error_message ??
-              `Could not add ${line.title} to the Tebex basket.`,
+            error: packageErrorMessage,
             details: packagePayload,
           },
           packageResponse.status,
@@ -193,30 +209,31 @@ Deno.serve(async (request) => {
     const checkoutResponse = await fetch(
       `https://headless.tebex.io/api/accounts/${webstoreId}/baskets/${basketIdent}/checkout`,
       {
-        headers: {
-          Accept: 'application/json',
-        },
+        headers: getTebexHeaders(false),
       },
     );
 
-    const checkoutPayload = await checkoutResponse.json();
+    const checkoutPayload = await readTebexPayload(checkoutResponse);
     if (!checkoutResponse.ok) {
+      const checkoutErrorMessage = extractTebexErrorMessage(
+        checkoutPayload,
+        'Could not retrieve the Tebex checkout URL.',
+      );
+
       await updateOrderPaymentState({
         adminClient,
         orderId: pendingOrder.orderId,
         storeId,
         provider: 'tebex',
         status: 'failed',
-        providerStatus: checkoutPayload?.error_message ?? 'checkout_url_failed',
+        providerStatus: checkoutErrorMessage || 'checkout_url_failed',
         providerOrderId: String(basketIdent),
         providerMetadata: checkoutPayload ?? {},
       });
 
       return jsonResponse(
         {
-          error:
-            checkoutPayload?.error_message ??
-            'Could not retrieve the Tebex checkout URL.',
+          error: checkoutErrorMessage,
           details: checkoutPayload,
         },
         checkoutResponse.status,

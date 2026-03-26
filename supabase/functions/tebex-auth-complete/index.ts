@@ -1,4 +1,9 @@
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
+import {
+  extractTebexErrorMessage,
+  getTebexHeaders,
+  readTebexPayload,
+} from '../_shared/tebex.ts';
 
 function pickFirstString(...values: unknown[]) {
   for (const value of values) {
@@ -31,17 +36,18 @@ Deno.serve(async (request) => {
     const basketResponse = await fetch(
       `https://headless.tebex.io/api/accounts/${webstoreId}/baskets/${basketIdent}`,
       {
-        headers: {
-          Accept: 'application/json',
-        },
+        headers: getTebexHeaders(false),
       },
     );
 
-    const basketPayload = await basketResponse.json();
+    const basketPayload = await readTebexPayload(basketResponse);
     if (!basketResponse.ok) {
       return jsonResponse(
         {
-          error: basketPayload?.error_message ?? 'Could not resolve Tebex basket.',
+          error: extractTebexErrorMessage(
+            basketPayload,
+            'Could not resolve Tebex basket.',
+          ),
           details: basketPayload,
         },
         basketResponse.status,

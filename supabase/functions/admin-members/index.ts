@@ -27,16 +27,20 @@ async function requireMembership(request: Request) {
   const requestClient = getRequestSupabaseClient(request);
   const { data: userData, error: userError } = await requestClient.auth.getUser();
   if (userError) {
+    console.error('[requireMembership] Auth user error:', userError);
     throw userError;
   }
 
   const user = userData.user;
   if (!user) {
+    console.error('[requireMembership] No user found in session');
     throw new Error('Necesitas una sesión admin válida.');
   }
 
   const adminClient = getServiceSupabaseClient();
   const storeId = getStoreId();
+  console.log(`[requireMembership] Checking membership for user ${user.id} in store ${storeId}`);
+  
   const { data: membership, error: membershipError } = await adminClient
     .from('storefront_admin_members')
     .select('store_id, user_id, role, created_at, updated_at')
@@ -45,10 +49,12 @@ async function requireMembership(request: Request) {
     .maybeSingle();
 
   if (membershipError) {
+    console.error('[requireMembership] Database membership error:', membershipError);
     throw membershipError;
   }
 
   if (!membership) {
+    console.error(`[requireMembership] Membership not found for user ${user.id} in store ${storeId}`);
     throw new Error('Este usuario no pertenece al panel de esta tienda.');
   }
 
@@ -350,6 +356,7 @@ Deno.serve(async (request) => {
 
     return jsonResponse({ error: 'Unsupported admin-members action.' }, 400);
   } catch (error) {
+    console.error('[admin-members] Critical failure:', error);
     return jsonResponse(
       {
         error: error instanceof Error ? error.message : 'Unexpected admin members failure.',

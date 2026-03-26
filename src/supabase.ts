@@ -8,6 +8,8 @@ let adminSupabaseClient: SupabaseClient | null = null;
 let customerSupabaseClient: SupabaseClient | null = null;
 
 export const supabaseStoreId = import.meta.env.VITE_SUPABASE_STORE_ID?.trim() || 'default';
+export const adminSupabaseStorageKey = `${supabaseStoreId}-admin-auth`;
+export const customerSupabaseStorageKey = `${supabaseStoreId}-customer-auth`;
 
 export function hasSupabaseSync() {
   return Boolean(supabaseUrl && supabaseAnonKey);
@@ -39,7 +41,7 @@ export function getAdminSupabaseClient() {
   if (!adminSupabaseClient) {
     adminSupabaseClient = createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
-        storageKey: `${supabaseStoreId}-admin-auth`,
+        storageKey: adminSupabaseStorageKey,
       },
     });
   }
@@ -55,10 +57,25 @@ export function getCustomerSupabaseClient() {
   if (!customerSupabaseClient) {
     customerSupabaseClient = createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
-        storageKey: `${supabaseStoreId}-customer-auth`,
+        storageKey: customerSupabaseStorageKey,
       },
     });
   }
 
   return customerSupabaseClient;
+}
+
+export function clearSupabaseStorageKey(storageKey: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(storageKey);
+    window.localStorage.removeItem(`${storageKey}-code-verifier`);
+    window.sessionStorage.removeItem(storageKey);
+    window.sessionStorage.removeItem(`${storageKey}-code-verifier`);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
 }

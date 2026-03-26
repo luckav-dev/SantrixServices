@@ -31,6 +31,79 @@ interface OrderStatusRow {
   updated_at: string;
 }
 
+async function extractFunctionErrorMessage(error: unknown, fallback: string) {
+  const response = (error as { context?: { clone?: () => Response } | Response })?.context;
+
+  if (response && typeof (response as Response).clone === 'function') {
+    const clonedResponse = (response as Response).clone();
+
+    try {
+      const payload = (await clonedResponse.json()) as {
+        error?: string;
+        message?: string;
+        msg?: string;
+        details?: {
+          error?: string;
+          message?: string;
+          msg?: string;
+          detail?: string;
+        };
+      };
+
+      return (
+        payload.error ||
+        payload.message ||
+        payload.msg ||
+        payload.details?.error ||
+        payload.details?.message ||
+        payload.details?.msg ||
+        payload.details?.detail ||
+        fallback
+      );
+    } catch {
+      try {
+        const text = await clonedResponse.text();
+        return text.trim() || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+  }
+
+  const message = (error as { message?: string })?.message;
+  return message || fallback;
+}
+
+function normalizeCheckoutFunctionError(provider: ProductCheckoutProvider, message: string) {
+  if (/Necesitas iniciar sesi.+FiveM/i.test(message) || /identity/i.test(message) && /required/i.test(message)) {
+    return 'Este checkout requiere que inicies sesión con FiveM antes de pagar este producto.';
+  }
+
+  if (/valida|sesi.+v.+lida/i.test(message) && /checkout/i.test(message)) {
+    return 'Tu sesión de cliente ya no es válida. Vuelve a iniciar sesión antes de continuar con el checkout.';
+  }
+
+  if (/SITE_URL|complete_url|cancel_url|return/i.test(message)) {
+    return 'La configuración de retorno de Tebex no es válida. Revisa SITE_URL y las rutas de vuelta del checkout.';
+  }
+
+  if (/Could not create the Tebex basket/i.test(message) || /basket/i.test(message) && /tebex/i.test(message)) {
+    return 'Tebex no pudo preparar el basket del checkout. Revisa la configuración Headless y prueba de nuevo.';
+  }
+
+  if (/checkout url/i.test(message)) {
+    return 'Tebex no devolvió la URL final del checkout. Revisa la configuración del webstore.';
+  }
+
+  if (/non-2xx status code/i.test(message)) {
+    return provider === 'paypal'
+      ? 'PayPal devolvió un error al preparar el pago.'
+      : 'La función de Tebex devolvió un error al preparar el checkout.';
+  }
+
+  return message;
+}
+
 function getCheckoutProviders(cartLines: CartLine[]) {
   return Array.from(new Set(cartLines.map((line) => line.product.checkoutProvider)));
 }
@@ -85,7 +158,13 @@ export async function startRemoteCheckout(args: {
   });
 
   if (error) {
-    throw error;
+    const message = await extractFunctionErrorMessage(
+      error,
+      provider === 'paypal'
+        ? 'No se pudo iniciar el checkout de PayPal.'
+        : 'No se pudo iniciar el checkout de Tebex.',
+    );
+    throw new Error(normalizeCheckoutFunctionError(provider, message));
   }
 
   const payload = data as Partial<CheckoutFunctionResponse> | null;
@@ -117,7 +196,11 @@ export async function captureRemotePayPalOrder(args: {
   });
 
   if (error) {
-    throw error;
+    const message = await extractFunctionErrorMessage(
+      error,
+      'No se pudo confirmar el pedido con PayPal.',
+    );
+    throw new Error(normalizeCheckoutFunctionError('paypal', message));
   }
 
   return data as {

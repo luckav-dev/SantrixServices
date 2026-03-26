@@ -2,7 +2,14 @@ import type { AuthChangeEvent, RealtimeChannel, Session, User } from '@supabase/
 import type { StorefrontReview } from './commerce-types';
 import type { CustomerAuthProviderId } from './site-config';
 import type { CartLine, CurrencyCode } from './store';
-import { getCustomerSupabaseClient, hasSupabaseSync, supabaseStoreId } from './supabase';
+import {
+  clearSupabaseStorageKey,
+  customerSupabaseStorageKey,
+  getCustomerSupabaseClient,
+  getPublicSupabaseClient,
+  hasSupabaseSync,
+  supabaseStoreId,
+} from './supabase';
 
 const CUSTOMER_TABLE = 'storefront_customers';
 const ORDER_TABLE = 'storefront_orders';
@@ -49,6 +56,158 @@ interface ReviewRow {
 export interface RemoteCustomerReviewState {
   purchasedProductSlugs: string[];
   reviews: StorefrontReview[];
+}
+
+function getProviderLabel(provider: Extract<CustomerAuthProviderId, 'google' | 'discord'>) {
+  return provider === 'google' ? 'Google' : 'Discord';
+}
+
+function normalizeStorefrontCustomerSessionError(message: string) {
+  if (/anonymous sign-ins are disabled/i.test(message)) {
+    return 'Supabase tiene desactivado Anonymous Sign-Ins. Activalo en Authentication > Providers > Anonymous para completar el login de FiveM.';
+  }
+
+  if (/invalid jwt|jwt expired|refresh token/i.test(message)) {
+    return 'La sesion guardada del cliente ya no es valida. Se ha limpiado el acceso local; vuelve a intentarlo.';
+  }
+
+  return message;
+}
+
+function isInvalidJwtLikeError(message: string) {
+  return /invalid jwt|jwt expired|refresh token/i.test(message);
+}
+
+async function clearBrokenCustomerSession() {
+  const client = getCustomerSupabaseClient();
+
+  clearSupabaseStorageKey(customerSupabaseStorageKey);
+
+  if (!client) {
+    return;
+  }
+
+  try {
+    await client.auth.signOut();
+  } catch {
+    // Ignore sign-out failures for broken sessions.
+  }
+}
+
+function normalizeOAuthProviderError(
+  provider: Extract<CustomerAuthProviderId, 'google' | 'discord'>,
+  message: string,
+) {
+  if (/provider is not enabled|unsupported provider/i.test(message)) {
+    return `${getProviderLabel(provider)} no está habilitado en Supabase Auth. Actívalo en Authentication > Providers y añade tu URL de callback.`;
+  }
+
+  if (/redirect/i.test(message) && /url/i.test(message)) {
+    return `La redirección de ${getProviderLabel(provider)} no está bien configurada. Revisa las Redirect URLs en Supabase Auth.`;
+  }
+
+  return message;
+}
+
+function normalizeFiveMLoginError(message: string) {
+  if (/Missing Tebex webstore configuration/i.test(message)) {
+    return 'Falta configurar Tebex en Supabase Functions. Revisa TEBEX_WEBSTORE_ID y SITE_URL.';
+  }
+
+  if (/ip_address|ipv4/i.test(message)) {
+    return 'Tebex esta rechazando el basket porque no recibe una IPv4 valida del cliente. Revisa el error detallado y prueba tambien desde una URL publica, no solo localhost.';
+  }
+
+  if (/Headless authentication is partially configured|public token|private key/i.test(message)) {
+    return 'La autenticacion opcional de Tebex Headless esta mal configurada. Si tu tienda la requiere, define TEBEX_PUBLIC_TOKEN y TEBEX_PRIVATE_KEY en Supabase.';
+  }
+
+  if (/returnUrl|complete_url|cancel_url|localhost|SITE_URL/i.test(message)) {
+    return 'Tebex esta rechazando la URL de retorno del login. Revisa SITE_URL y prueba con un dominio publico/https ademas de localhost.';
+  }
+
+  if (/Could not create Tebex basket/i.test(message)) {
+    return 'Tebex no pudo crear el basket de login. Revisa TEBEX_WEBSTORE_ID y que Headless API esté lista.';
+  }
+
+  if (/Could not fetch Tebex auth URLs/i.test(message)) {
+    return 'Tebex no devolvió la URL de autenticación de FiveM. Revisa la configuración del webstore y del flujo Headless.';
+  }
+
+  if (/non-2xx status code/i.test(message)) {
+    return 'La función de login de FiveM devolvió un error. Revisa la configuración de Tebex en Supabase Functions.';
+  }
+
+  return message;
+}
+
+async function extractFunctionErrorMessage(error: unknown, fallback: string) {
+  const response = (error as { context?: { clone?: () => Response } | Response })?.context;
+
+  if (response && typeof (response as Response).clone === 'function') {
+    const clonedResponse = (response as Response).clone();
+
+    try {
+      const payload = await clonedResponse.json() as {
+        error?: string;
+        message?: string;
+        msg?: string;
+        details?: {
+          error?: string;
+          error_message?: string;
+          message?: string;
+          msg?: string;
+          detail?: string;
+          errors?: Array<string | { field?: string; reason?: string; message?: string; detail?: string; code?: string }>;
+        };
+      };
+
+      const detailErrors = payload.details?.errors;
+      const firstDetailError = Array.isArray(detailErrors) ? detailErrors[0] : null;
+      const detailErrorMessage =
+        typeof firstDetailError === 'string'
+          ? firstDetailError
+          : firstDetailError && typeof firstDetailError === 'object'
+            ? [
+                typeof firstDetailError.field === 'string' ? firstDetailError.field : '',
+                typeof firstDetailError.message === 'string'
+                  ? firstDetailError.message
+                  : typeof firstDetailError.detail === 'string'
+                    ? firstDetailError.detail
+                    : typeof firstDetailError.reason === 'string'
+                      ? firstDetailError.reason
+                      : typeof firstDetailError.code === 'string'
+                        ? firstDetailError.code
+                        : '',
+              ]
+                .filter(Boolean)
+                .join(': ')
+            : '';
+
+      return (
+        payload.error ||
+        payload.message ||
+        payload.msg ||
+        payload.details?.error ||
+        payload.details?.error_message ||
+        payload.details?.message ||
+        payload.details?.msg ||
+        payload.details?.detail ||
+        detailErrorMessage ||
+        fallback
+      );
+    } catch {
+      try {
+        const text = await clonedResponse.text();
+        return text.trim() || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+  }
+
+  const message = (error as { message?: string })?.message;
+  return message || fallback;
 }
 
 function resolveDisplayName(user: User, preferredName?: string | null) {
@@ -185,7 +344,11 @@ export async function signInStorefrontCustomer(displayName?: string) {
 
   const { data: sessionData, error: sessionError } = await client.auth.getSession();
   if (sessionError) {
-    throw sessionError;
+    if (isInvalidJwtLikeError(sessionError.message)) {
+      await clearBrokenCustomerSession();
+    } else {
+      throw sessionError;
+    }
   }
 
   if (sessionData.session?.user) {
@@ -202,7 +365,7 @@ export async function signInStorefrontCustomer(displayName?: string) {
   });
 
   if (error) {
-    throw error;
+    throw new Error(normalizeStorefrontCustomerSessionError(error.message));
   }
 
   if (!data.user) {
@@ -225,19 +388,25 @@ export async function signInStorefrontCustomerWithOAuth(
     provider,
     options: {
       redirectTo,
-      skipBrowserRedirect: false,
+      skipBrowserRedirect: true,
     },
   });
 
   if (error) {
-    throw error;
+    throw new Error(normalizeOAuthProviderError(provider, error.message));
   }
 
-  return data;
+  if (!data?.url) {
+    throw new Error(`Supabase no devolvió una URL de acceso para ${getProviderLabel(provider)}.`);
+  }
+
+  return {
+    url: data.url,
+  };
 }
 
 export async function startFiveMHeadlessLogin(returnPath: string) {
-  const client = getCustomerSupabaseClient();
+  const client = getPublicSupabaseClient();
   if (!client) {
     return null;
   }
@@ -249,7 +418,11 @@ export async function startFiveMHeadlessLogin(returnPath: string) {
   });
 
   if (error) {
-    throw error;
+    const message = await extractFunctionErrorMessage(
+      error,
+      'No se pudo iniciar el login de FiveM en Tebex.',
+    );
+    throw new Error(normalizeFiveMLoginError(message));
   }
 
   return data as {
@@ -259,7 +432,7 @@ export async function startFiveMHeadlessLogin(returnPath: string) {
 }
 
 export async function completeFiveMHeadlessLogin(basketIdent: string) {
-  const client = getCustomerSupabaseClient();
+  const client = getPublicSupabaseClient();
   if (!client) {
     return null;
   }
@@ -271,7 +444,11 @@ export async function completeFiveMHeadlessLogin(basketIdent: string) {
   });
 
   if (error) {
-    throw error;
+    const message = await extractFunctionErrorMessage(
+      error,
+      'No se pudo completar la validación de FiveM con Tebex.',
+    );
+    throw new Error(normalizeFiveMLoginError(message));
   }
 
   return data as {
@@ -289,6 +466,11 @@ export async function restoreRemoteCustomerSession() {
 
   const { data: sessionData, error: sessionError } = await client.auth.getSession();
   if (sessionError) {
+    if (isInvalidJwtLikeError(sessionError.message)) {
+      await clearBrokenCustomerSession();
+      return null;
+    }
+
     throw sessionError;
   }
 
@@ -356,6 +538,11 @@ export async function linkRemoteCustomerIdentity(args: {
 
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError) {
+    if (isInvalidJwtLikeError(userError.message)) {
+      await clearBrokenCustomerSession();
+      throw new Error('La sesion del cliente se corrompio durante el callback. Intenta iniciar el login de FiveM otra vez.');
+    }
+
     throw userError;
   }
 

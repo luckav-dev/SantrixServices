@@ -28,8 +28,8 @@ import {
   type Category,
   type Product,
   type ProductCheckoutProvider,
-  useStore,
 } from './store';
+import { useStore } from './store-context';
 import {
   fetchAdminCommerceSnapshot,
   subscribeToAdminCommerceSnapshot,

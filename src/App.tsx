@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation, type Location } from 'react-router-dom';
 import { AdminErrorBoundary } from './admin-error-boundary';
 import { SiteShell } from './components';
 import {
+  AccountPage,
   AuthCallbackPage,
   CartPage,
   CategoryPage,
@@ -20,10 +21,15 @@ const AdminDashboardPage = lazy(() => import('./admin-pages').then((module) => (
 
 function ScrollToTop() {
   const location = useLocation();
+  const state = location.state as { backgroundLocation?: Location } | undefined;
 
   useEffect(() => {
+    if (location.pathname === '/login' && state?.backgroundLocation) {
+      return;
+    }
+
     window.scrollTo({ top: 0, behavior: 'auto' });
-  }, [location.pathname]);
+  }, [location.pathname, state?.backgroundLocation]);
 
   return null;
 }
@@ -38,11 +44,21 @@ function AdminRouteFrame({ children }: { children: ReactNode }) {
   );
 }
 
-function AppRouter() {
+function AppRoutes() {
+  const location = useLocation();
+  const state = location.state as { backgroundLocation?: Location } | undefined;
+  const backgroundLocation = state?.backgroundLocation;
+  const routedLocation =
+    backgroundLocation ??
+    (location.pathname === '/login'
+      ? { pathname: '/', search: '', hash: '' }
+      : location);
+  const showLoginModal = location.pathname === '/login';
+
   return (
-    <BrowserRouter>
+    <>
       <ScrollToTop />
-      <Routes>
+      <Routes location={routedLocation}>
         <Route
           path="/admin/login"
           element={(
@@ -65,16 +81,30 @@ function AppRouter() {
         />
         <Route element={<SiteShell />}>
           <Route index element={<HomePage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/category/:categoryId" element={<CategoryPage />} />
           <Route path="/package/:productSlug" element={<ProductPage />} />
           <Route path="/checkout/basket" element={<CartPage />} />
           <Route path="/checkout/return" element={<CheckoutReturnPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="/login" element={<LoginPage />} />
           <Route path="/terms-conditions-and-refund-policy" element={<TermsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
+
+      {showLoginModal ? (
+        <Routes>
+          <Route path="/login" element={<LoginPage modal />} />
+        </Routes>
+      ) : null}
+    </>
+  );
+}
+
+function AppRouter() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

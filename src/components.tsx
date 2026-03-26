@@ -1,23 +1,33 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   ChevronDown,
   Clipboard,
   Menu,
   ShoppingCart,
+  UserRound,
   X,
 } from 'lucide-react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   currencies,
   formatPrice,
   getCategoryHref,
   getPrimaryCategory,
   getProductHref,
+  type CartLine,
+  type Category,
   type CurrencyCode,
   type Product,
-  useStore,
 } from './store';
-import { getPrimaryCustomerAuthProvider } from './customer-auth-utils';
+import { useStore } from './store-context';
+import type {
+  EntryPopupRowConfig,
+  FaqItemConfig,
+  FooterColumnConfig,
+  FooterLinkItem,
+  HeaderSocialLink,
+} from './site-config';
+import type { PublicPaymentFeedEntry, StorefrontReview } from './commerce-types';
 import { getEmbedMediaSrc, hasOptionalMedia, sanitizeOptionalMediaSrc } from './media';
 import { SafeImage } from './safe-image';
 
@@ -83,26 +93,6 @@ function ExternalAnchor({
       {children}
     </a>
   );
-}
-
-function ProviderVisual({
-  iconClass,
-  logoAlt,
-  logoSrc,
-}: {
-  iconClass?: string;
-  logoAlt?: string;
-  logoSrc?: string;
-}) {
-  if (logoSrc) {
-    return <SafeImage src={logoSrc} alt={logoAlt ?? ''} className="w-4 h-4 object-contain white-icon" />;
-  }
-
-  if (iconClass) {
-    return <i className={`${iconClass} text-sm`} />;
-  }
-
-  return <i className="fa-solid fa-right-to-bracket text-sm" />;
 }
 
 function formatRelativeAdminTime(value: string) {
@@ -178,7 +168,7 @@ export function SiteShell() {
       }
     };
 
-    criticalAssets.forEach(src => {
+    criticalAssets.forEach((src: string) => {
       const img = new Image();
       img.src = src;
       img.onload = onAssetLoaded;
@@ -239,7 +229,7 @@ function EntryOfferModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [hasVideoFailed, setHasVideoFailed] = useState(false);
   const sessionKey = `0resmon.entry-popup.${siteConfig.brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-  const popupRows = entryPopup.rows.filter((row) =>
+  const popupRows = entryPopup.rows.filter((row: EntryPopupRowConfig) =>
     [row.label, row.oldPrice, row.newPrice].some((value) => value.trim()),
   );
   const videoSrc =
@@ -399,6 +389,9 @@ function EntryOfferModal() {
     return null;
   }
 
+  const mediaContent = renderMedia();
+  const ctaContent = renderCta();
+
   return (
     <div
       className="entry-popup"
@@ -411,81 +404,82 @@ function EntryOfferModal() {
       }}
     >
       <div className="entry-popup__dialog" role="dialog" aria-modal="true" aria-label={entryPopup.title}>
-        <button
-          className="entry-popup__close"
-          type="button"
-          aria-label="Dismiss popup"
-          onClick={handleClose}
-        >
-          <X size={18} />
-        </button>
 
-        <div className="entry-popup__layout">
-          <div className="entry-popup__column entry-popup__column--media">
-            {renderMedia()}
-          </div>
-
-          <div className="entry-popup__column entry-popup__column--content">
-            <div className="entry-popup__header">
-              <div className="entry-popup__header-top">
-                <div className="entry-popup__brand">
-                  {hasOptionalMedia(entryPopup.logoSrc) ? (
-                    <SafeImage
-                      className="entry-popup__brand-logo"
-                      src={entryPopup.logoSrc}
-                      alt={entryPopup.logoAlt}
-                    />
-                  ) : (
-                    <span className="entry-popup__brand-fallback">{siteConfig.brandName.slice(0, 1)}</span>
-                  )}
-                  {entryPopup.badge.trim() ? (
-                    <span className="entry-popup__badge">{entryPopup.badge}</span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="entry-popup__copy">
-                <h2>{entryPopup.title}</h2>
-                {entryPopup.message.trim() ? <p>{entryPopup.message}</p> : null}
+        <div className={`entry-popup__layout ${mediaContent ? '' : 'entry-popup__layout--single'}`.trim()}>
+          {mediaContent ? (
+            <div className="entry-popup__column entry-popup__column--media">
+              <div className="entry-popup__media-shell">
+                {mediaContent}
               </div>
             </div>
+          ) : null}
 
-            {entryPopup.infoText.trim() ? (
-              <div className="entry-popup__notice">
-                <span className="entry-popup__notice-icon">
-                  <i className="fa-solid fa-sparkles" />
-                </span>
-                <p>{entryPopup.infoText}</p>
-              </div>
-            ) : null}
-
-            {popupRows.length ? (
-              <div className="entry-popup__prices">
-                <div className="entry-popup__prices-head">
-                  <span>{entryPopup.quantityLabel || 'Quantity'}</span>
-                  <span>{entryPopup.priceLabel || 'New Prices'}</span>
-                </div>
-                <div className="entry-popup__prices-body">
-                  {popupRows.map((row, index) => (
-                    <div className="entry-popup__price-row" key={`${row.label}-${row.newPrice}-${index}`}>
-                      <div className="entry-popup__price-label">
-                        <span className="entry-popup__price-dot" />
-                        <strong>{row.label || `Option ${index + 1}`}</strong>
-                      </div>
-                      <span className="entry-popup__price-values">
-                        {row.oldPrice.trim() ? <del>{row.oldPrice}</del> : null}
-                        {row.newPrice.trim() ? <em>{row.newPrice}</em> : null}
-                      </span>
+          <div className="entry-popup__column entry-popup__column--content">
+            <div className="entry-popup__content-scroll">
+              <div className="entry-popup__header">
+                <div className="entry-popup__header-top">
+                  <div className="entry-popup__brand">
+                    {hasOptionalMedia(entryPopup.logoSrc) ? (
+                      <SafeImage
+                        className="entry-popup__brand-logo"
+                        src={entryPopup.logoSrc}
+                        alt={entryPopup.logoAlt}
+                      />
+                    ) : (
+                      <span className="entry-popup__brand-fallback">{siteConfig.brandName.slice(0, 1)}</span>
+                    )}
+                    <div className="entry-popup__brand-meta">
+                      <span className="entry-popup__brand-name">{siteConfig.brandName}</span>
+                      {entryPopup.badge.trim() ? (
+                        <span className="entry-popup__badge">{entryPopup.badge}</span>
+                      ) : null}
                     </div>
-                  ))}
+                  </div>
+                </div>
+                <div className="entry-popup__copy">
+                  <h2>{entryPopup.title}</h2>
+                  {entryPopup.message.trim() ? <p>{entryPopup.message}</p> : null}
                 </div>
               </div>
-            ) : null}
 
-            <div className="entry-popup__actions">
-              {renderCta()}
-              <button className="entry-popup__dismiss" type="button" onClick={handleClose}>
-                {entryPopup.dismissLabel || 'Dismiss'}
-              </button>
+              {entryPopup.infoText.trim() ? (
+                <div className="entry-popup__notice">
+                  <span className="entry-popup__notice-icon">
+                    <i className="fa-solid fa-sparkles" />
+                  </span>
+                  <p>{entryPopup.infoText}</p>
+                </div>
+              ) : null}
+
+              {popupRows.length ? (
+                <div className="entry-popup__prices">
+                  <div className="entry-popup__prices-head">
+                    <span>{entryPopup.quantityLabel || 'Quantity'}</span>
+                    <span>{entryPopup.priceLabel || 'New Prices'}</span>
+                  </div>
+                  <div className="entry-popup__prices-body">
+                    {popupRows.map((row: EntryPopupRowConfig, index: number) => (
+                      <div className="entry-popup__price-row" key={`${row.label}-${row.newPrice}-${index}`}>
+                        <div className="entry-popup__price-label">
+                          <span className="entry-popup__price-dot" />
+                          <strong>{row.label || `Option ${index + 1}`}</strong>
+                        </div>
+                        <span className="entry-popup__price-values">
+                          {row.oldPrice.trim() ? <del>{row.oldPrice}</del> : null}
+                          {row.newPrice.trim() ? <em>{row.newPrice}</em> : null}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="entry-popup__actions">
+                {ctaContent}
+                <button className="entry-popup__dismiss" type="button" onClick={handleClose}>
+                  {entryPopup.dismissLabel || 'Dismiss'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -594,25 +588,75 @@ function SiteHeader() {
     logout,
     siteConfig,
   } = useStore();
+  const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobileScriptsOpen, setIsMobileScriptsOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isMobileAccountMenuOpen, setIsMobileAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const headerScriptLinks = categories
-    .filter((category) => category.showInNavigation !== false)
-    .map((category) => ({ label: category.label, href: getCategoryHref(category.id) }));
+    .filter((category: Category) => category.showInNavigation !== false)
+    .map((category: Category) => ({ label: category.label, href: getCategoryHref(category.id) }));
   const { brandAssets, customerLogin, header } = siteConfig;
-  const primaryLoginProvider = getPrimaryCustomerAuthProvider(customerLogin);
   const customerSessionLabel = user
     ? [customerLogin.headerLoggedInTextPrefix.trim(), user.name].filter(Boolean).join(' ')
     : '';
+  const customerTriggerLabel = user?.name?.trim() || customerSessionLabel || 'Mi cuenta';
+  const customerInitials = buildInitials(user?.name || siteConfig.brandName);
+  const currentPath = `${location.pathname}${location.search}${location.hash}`;
+  const loginTarget = {
+    pathname: '/login',
+    search: `?next=${encodeURIComponent(currentPath)}`,
+    state: { backgroundLocation: location },
+  };
 
   useEffect(() => {
     document.body.classList.toggle('menu-open', isMenuOpen || isCartOpen);
     return () => document.body.classList.remove('menu-open');
   }, [isCartOpen, isMenuOpen]);
 
+  useEffect(() => {
+    if (!isAccountMenuOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setIsAccountMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsAccountMenuOpen(false);
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isAccountMenuOpen]);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAccountMenuOpen(false);
+      setIsMobileAccountMenuOpen(false);
+    }
+  }, [user]);
+
   function closeMobileMenu() {
     setIsMenuOpen(false);
     setIsMobileScriptsOpen(false);
+    setIsMobileAccountMenuOpen(false);
+  }
+
+  async function handleLogout() {
+    setIsAccountMenuOpen(false);
+    setIsMobileAccountMenuOpen(false);
+    await logout();
   }
 
   const desktopLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -670,7 +714,7 @@ function SiteHeader() {
                     </button>
                     <div className="header-dropdown__menu absolute top-full left-0 hidden pt-2 group-hover:flex">
                       <div className="w-max h-max outline-2 outline-white/5 p-2 rounded-2xl flex flex-col items-start gap-y-1 z-[100] bg-[#171717]">
-                        {headerScriptLinks.map((link) => (
+                        {headerScriptLinks.map((link: { label: string; href: string }) => (
                           <NavLink
                             key={link.href}
                             to={link.href}
@@ -704,7 +748,7 @@ function SiteHeader() {
 
             <div className="site-header__actions flex h-full items-center gap-x-3">
               <div className="site-header__socials hidden xl:flex items-center gap-x-2 sm:gap-x-3">
-                {header.socialLinks.map((link) => (
+                {header.socialLinks.map((link: HeaderSocialLink) => (
                   <ExternalAnchor
                     key={link.label}
                     className="site-header__social-link flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 text-white border border-transparent transition-colors duration-200 rounded-full"
@@ -727,9 +771,9 @@ function SiteHeader() {
               </button>
 
               <details className="header-dropdown header-dropdown--currency hidden xl:flex w-max h-max flex-col items-start relative group">
-                <summary className="w-max h-[30px] sm:h-[34px] flex items-center gap-x-1.5 px-2 sm:px-2.5 rounded-lg border border-[#282828] bg-white hover:bg-[#FF3A52] hover:text-white hover:border-[#FF3A52] text-black font-bold italic text-sm sm:text-base cursor-pointer transition-colors duration-200">
+                <summary className="header-login header-dropdown--currency__summary cursor-pointer">
                   {currency}
-                  <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" size={16} />
+                  <ChevronDown size={14} />
                 </summary>
                 <div className="header-dropdown__menu header-dropdown__menu--currency w-max h-max">
                   <div className="grid grid-cols-3 gap-1.5">
@@ -754,25 +798,59 @@ function SiteHeader() {
               </details>
 
               {user ? (
-                <button
-                  className="header-login hidden xl:flex w-max h-[30px] sm:h-[34px] items-center gap-x-1.5 px-2 sm:px-2.5 rounded-lg border border-white/15 text-white font-bold italic text-sm sm:text-base transition-colors duration-200"
-                  style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, #323232 0%, #555555 100%)' }}
-                  type="button"
-                  onClick={logout}
-                >
-                  {customerSessionLabel}
-                </button>
+                <div className="header-account hidden xl:flex" ref={accountMenuRef}>
+                  <button
+                    className={`header-login header-account__trigger hidden xl:flex ${isAccountMenuOpen ? 'is-open' : ''}`.trim()}
+                    type="button"
+                    onClick={() => setIsAccountMenuOpen((current) => !current)}
+                    aria-expanded={isAccountMenuOpen}
+                    aria-haspopup="menu"
+                  >
+                    <span className="header-account__avatar">{customerInitials}</span>
+                    <span className="header-account__label">{customerTriggerLabel}</span>
+                    <ChevronDown className={`header-account__chevron ${isAccountMenuOpen ? 'is-open' : ''}`} size={16} />
+                  </button>
+
+                  <div className={`header-account__menu ${isAccountMenuOpen ? 'is-open' : ''}`.trim()} role="menu">
+                    <div className="header-account__profile">
+                      <span className="header-account__profile-avatar">{customerInitials}</span>
+                      <div className="header-account__profile-copy">
+                        <strong>{customerSessionLabel || customerTriggerLabel}</strong>
+                        {user.email ? <span>{user.email}</span> : null}
+                        <small>{user.provider}</small>
+                      </div>
+                    </div>
+
+                    <div className="header-account__actions">
+                      <Link className="header-account__action" data-label="Mi perfil" to="/account" onClick={() => setIsAccountMenuOpen(false)}>
+                        <UserRound size={16} />
+                        <span>Mi perfil</span>
+                      </Link>
+                      <Link className="header-account__action" data-label="Mi cesta" to="/checkout/basket" onClick={() => setIsAccountMenuOpen(false)}>
+                        <ShoppingCart size={16} />
+                        <span>Mi cesta</span>
+                      </Link>
+                      <Link
+                        className="header-account__action"
+                        data-label="Terminos"
+                        to="/terms-conditions-and-refund-policy"
+                        onClick={() => setIsAccountMenuOpen(false)}
+                      >
+                        <Clipboard size={16} />
+                        <span>Términos</span>
+                      </Link>
+                      <button className="header-account__action header-account__action--danger" data-label="Cerrar sesion" type="button" onClick={() => void handleLogout()}>
+                        <X size={16} />
+                        <span>Cerrar sesión</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <Link
-                  className="header-login hidden xl:flex w-max h-[30px] sm:h-[34px] items-center gap-x-1.5 px-2 sm:px-2.5 rounded-lg border border-white/15 text-white font-bold italic text-sm sm:text-base transition-colors duration-200"
-                  style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, #323232 0%, #555555 100%)' }}
-                  to="/login"
+                  className="header-login hidden xl:flex"
+                  to={loginTarget}
                 >
-                  <ProviderVisual
-                    iconClass={primaryLoginProvider?.iconClass}
-                    logoAlt={primaryLoginProvider?.logoAlt ?? customerLogin.providerLogoAlt}
-                    logoSrc={primaryLoginProvider?.logoSrc ?? customerLogin.providerLogoSrc}
-                  />
                   {header.guestLoginLabel}
                 </Link>
               )}
@@ -843,7 +921,7 @@ function SiteHeader() {
                   />
                 </button>
                 <div className={`mobile-panel__submenu ${isMobileScriptsOpen ? 'is-open' : ''}`}>
-                  {headerScriptLinks.map((link) => (
+                  {headerScriptLinks.map((link: { label: string; href: string }) => (
                     <NavLink
                       key={link.href}
                       className="mobile-panel__sublink"
@@ -877,7 +955,7 @@ function SiteHeader() {
           <div className="mobile-panel__social-section">
             <p>FOLLOW US</p>
             <div className="mobile-panel__social-grid">
-              {header.socialLinks.map((link) => (
+              {header.socialLinks.map((link: HeaderSocialLink) => (
                 <a
                   key={link.label}
                   className="mobile-panel__social-card"
@@ -922,19 +1000,58 @@ function SiteHeader() {
           </Link>
 
           {user ? (
-            <button
-              className="mobile-panel__login-link"
-              type="button"
-              onClick={() => {
-                void logout();
-                closeMobileMenu();
-              }}
-            >
-              <i className="fa-solid fa-right-from-bracket" />
-              <span>{customerSessionLabel}</span>
-            </button>
+            <div className="mobile-panel__account">
+              <button
+                className="mobile-panel__login-link mobile-panel__login-link--account"
+                type="button"
+                onClick={() => setIsMobileAccountMenuOpen((current) => !current)}
+                aria-expanded={isMobileAccountMenuOpen}
+              >
+                <span className="mobile-panel__account-trigger">
+                  <span className="mobile-panel__account-avatar">{customerInitials}</span>
+                  <span>{customerTriggerLabel}</span>
+                </span>
+                <ChevronDown className={`mobile-panel__chevron ${isMobileAccountMenuOpen ? 'rotate-180' : ''}`} size={18} />
+              </button>
+              <div className={`mobile-panel__account-menu ${isMobileAccountMenuOpen ? 'is-open' : ''}`.trim()}>
+                <div className="mobile-panel__account-profile">
+                  <strong>{customerSessionLabel || customerTriggerLabel}</strong>
+                  {user.email ? <span>{user.email}</span> : null}
+                  <small>{user.provider}</small>
+                </div>
+                <Link className="mobile-panel__account-action" data-label="Mi perfil" onClick={closeMobileMenu} to="/account">
+                  <UserRound size={16} />
+                  <span>Mi perfil</span>
+                </Link>
+                <Link className="mobile-panel__account-action" data-label="Mi cesta" onClick={closeMobileMenu} to="/checkout/basket">
+                  <ShoppingCart size={16} />
+                  <span>Mi cesta</span>
+                </Link>
+                <Link
+                  className="mobile-panel__account-action"
+                  data-label="Terminos"
+                  onClick={closeMobileMenu}
+                  to="/terms-conditions-and-refund-policy"
+                >
+                  <Clipboard size={16} />
+                  <span>Términos</span>
+                </Link>
+                <button
+                  className="mobile-panel__account-action mobile-panel__account-action--danger"
+                  data-label="Cerrar sesion"
+                  type="button"
+                  onClick={() => {
+                    void handleLogout();
+                    closeMobileMenu();
+                  }}
+                >
+                  <X size={16} />
+                  <span>Cerrar sesión</span>
+                </button>
+              </div>
+            </div>
           ) : (
-            <Link className="mobile-panel__login-link" onClick={closeMobileMenu} to="/login">
+            <Link className="mobile-panel__login-link" onClick={closeMobileMenu} to={loginTarget}>
               <i className="fa-solid fa-link" />
               <span>{header.guestLoginLabel}</span>
             </Link>
@@ -968,8 +1085,17 @@ function CartDrawer() {
     removeFromCart,
     siteConfig,
     subtotalEur,
+    user,
   } = useStore();
+  const location = useLocation();
   const { storeText } = siteConfig;
+  const checkoutHref = user
+    ? '/checkout/basket'
+    : {
+      pathname: '/login',
+      search: '?next=%2Fcheckout%2Fbasket',
+      state: { backgroundLocation: location },
+    };
 
   return (
     <aside className={`cart-drawer ${isCartOpen ? 'is-open' : ''}`}>
@@ -992,7 +1118,7 @@ function CartDrawer() {
 
       <div className="cart-drawer__body">
         {cartLines.length ? (
-          cartLines.map((line) => (
+          cartLines.map((line: CartLine) => (
             <article className="cart-line" key={line.product.slug}>
               <Link className="cart-line__image" onClick={closeCart} to={getProductHref(line.product.slug)}>
                 <SafeImage src={line.product.image} alt={line.product.title} />
@@ -1026,7 +1152,7 @@ function CartDrawer() {
           <span>Total</span>
           <strong>{formatPrice(subtotalEur, currency)}</strong>
         </div>
-        <Link className="cart-drawer__primary" onClick={closeCart} to="/checkout/basket">
+        <Link className="cart-drawer__primary" onClick={closeCart} to={checkoutHref}>
           {storeText.cartDrawerCheckoutLabel}
         </Link>
         <button className="cart-drawer__secondary" type="button" onClick={closeCart}>
@@ -1069,11 +1195,11 @@ function SiteFooter() {
           </div>
 
           <div className="grid gap-20 grid-cols-2 lg:grid-cols-3">
-            {footer.columns.map((column) => (
+            {footer.columns.map((column: FooterColumnConfig) => (
               <div className="flex flex-col items-start" key={column.title}>
                 <h3 className="mb-2 font-bold text-base text-white line-clamp-1">{column.title}</h3>
                 <ul className="flex flex-col items-start gap-y-1">
-                  {column.links.map((link) => (
+                  {column.links.map((link: FooterLinkItem) => (
                     <li key={link.label}>
                       {link.href.startsWith('/') ? (
                         <Link
@@ -1264,7 +1390,7 @@ export function ReviewSection() {
     return null;
   }
 
-  const cards = recentReviews.map((review) => (
+  const cards = recentReviews.map((review: StorefrontReview) => (
     <article
       className="w-[350px] max-w-[calc(100vw-48px)] h-[306px] border-2 border-white/5 rounded-2xl p-[22px] flex flex-col items-start justify-between flex-shrink-0 backdrop-blur-lg"
       key={review.id}
@@ -1355,7 +1481,7 @@ export function FaqPreview() {
     'fa-headset',
     'fa-sliders',
   ];
-  const filteredItems = faq.items.filter((item) => {
+  const filteredItems = faq.items.filter((item: FaqItemConfig) => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) {
       return true;
@@ -1418,7 +1544,7 @@ export function FaqPreview() {
               className="!hidden 2xl:!flex w-[453px] h-[344px] mb-3 xl:mb-0 object-cover rounded-xl flex-shrink-0"
             />
             <div className="w-full flex flex-col items-center gap-y-[10px] overflow-y-auto max-h-[350px] pr-2">
-              {filteredItems.map((item, index) => {
+              {filteredItems.map((item: FaqItemConfig, index: number) => {
                 const isOpen = openIndex === index;
                 return (
                   <div className="w-full" key={item.question}>
@@ -1478,7 +1604,7 @@ export function PaymentsSection() {
     return null;
   }
 
-  const cards = recentOrders.map((payment) => {
+  const cards = recentOrders.map((payment: PublicPaymentFeedEntry) => {
     return (
       <article
         className="w-[350px] max-w-[calc(100vw-48px)] h-max flex items-center justify-between p-[18px] rounded-2xl border-2 border-white/5 backdrop-blur-lg payment-item flex-shrink-0"
@@ -1539,10 +1665,10 @@ export function DiscordBannerSection() {
   return (
     <section className="w-full flex items-center justify-center py-12 sm:py-16 md:py-24 px-4 sm:px-6 lg:px-8">
       <div
-        className="discord-banner container max-w-7xl mx-auto min-h-[200px] sm:min-h-[240px] md:h-[274px] flex items-center border-2 border-white/[.04] backdrop-blur-lg rounded-2xl sm:rounded-[25px] relative overflow-hidden"
+        className="discord-banner container max-w-7xl mx-auto min-h-[200px] sm:min-h-[140px] md:min-h-[350px] flex items-center border-2 border-white/[.04] backdrop-blur-lg rounded-2xl sm:rounded-[25px] relative overflow-hidden"
         style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(0, 0, 0, 0.31) 0%, rgba(71, 71, 71, 0.31) 100%)' }}
       >
-        <div className="discord-banner__copy h-full w-full flex flex-col items-start justify-between px-4 sm:px-6 md:px-8 lg:px-[42px] py-4 sm:py-6 md:py-[24px] z-10">
+        <div className="discord-banner__copy h-full w-full flex flex-col items-start justify-between px-4 sm:px-6 md:px-8 lg:px-[42px] py-4 sm:py-6 md:py-[42px] z-10">
           <div className="max-w-full sm:max-w-[480px] xl:max-w-[600px] w-full">
             <h2 className="font-bold text-xl lg:text-2xl sm:text-3xl md:text-[36px] text-white">
               {discordBanner.titleLead} <span className="text-[#0474F3]">{discordBanner.titleAccent}</span>

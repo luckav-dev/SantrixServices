@@ -11,6 +11,7 @@ function getRequiredEnv(name: string) {
 
 export function getStoreId() {
   return (
+    Deno.env.get('STORE_ID')?.trim() ||
     Deno.env.get('SUPABASE_STORE_ID')?.trim() ||
     Deno.env.get('VITE_SUPABASE_STORE_ID')?.trim() ||
     'default'
