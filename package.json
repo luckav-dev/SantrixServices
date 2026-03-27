@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "prebuild": "node scripts/generate-seo-assets.mjs",
+    "prebuild": "node --input-type=module -e \"import { existsSync } from 'node:fs'; if (existsSync('./scripts/generate-seo-assets.mjs')) { await import('./scripts/generate-seo-assets.mjs'); } else { console.log('Skipping SEO asset generation: scripts/generate-seo-assets.mjs not found'); }\"",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
