@@ -670,16 +670,14 @@ function SiteHeader() {
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 w-full">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-x-4 sm:gap-x-6 lg:gap-x-10">
-              <Link className="flex items-center gap-x-2 sm:gap-x-5" to="/" aria-label={siteConfig.studioName}>
+            <div className="flex items-center gap-x-3 sm:gap-x-4 lg:gap-x-4">
+              <Link className="site-header__brand flex items-center gap-x-2 sm:gap-x-3" to="/" aria-label={siteConfig.studioName}>
                 {hasOptionalMedia(brandAssets.headerLogoSrc) ? (
                   <img
+                    className="site-header__brand-logo"
                     src={brandAssets.headerLogoSrc || ''}
                     alt={brandAssets.headerLogoAlt}
                     style={{
-                      width: 'auto',
-                      maxWidth: '520px',
-                      height: '64px',
                       display: 'block',
                       objectFit: 'contain',
                     }}
@@ -687,19 +685,9 @@ function SiteHeader() {
                 ) : (
                   <span className="font-bold text-lg sm:text-xl text-white">{siteConfig.brandName}</span>
                 )}
-                {hasOptionalMedia(brandAssets.headerPartnerLogoSrc) ? (
-                  <>
-                    <div className="hidden sm:block w-px h-10 bg-white/10"></div>
-                    <SafeImage
-                      src={brandAssets.headerPartnerLogoSrc}
-                      alt={brandAssets.headerPartnerLogoAlt}
-                      className="hidden sm:block w-8 sm:w-10 h-8 sm:h-10 object-contain"
-                    />
-                  </>
-                ) : null}
               </Link>
 
-              <nav className="site-header__nav hidden xl:flex items-center gap-x-6 lg:gap-x-8">
+              <nav className="site-header__nav hidden xl:flex items-center gap-x-3 lg:gap-x-4">
                 <NavLink className={desktopLinkClass} to="/">
                   {header.homeLabel}
                 </NavLink>
@@ -1326,6 +1314,8 @@ export function ProductCard({
       ? 'Tebex'
       : product.checkoutProvider === 'paypal'
         ? 'PayPal'
+        : product.checkoutProvider === 'stripe'
+          ? 'Stripe'
         : 'External';
 
   return (
@@ -1392,7 +1382,7 @@ export function ReviewSection() {
 
   const cards = recentReviews.map((review: StorefrontReview) => (
     <article
-      className="w-[350px] max-w-[calc(100vw-48px)] h-[306px] border-2 border-white/5 rounded-2xl p-[22px] flex flex-col items-start justify-between flex-shrink-0 backdrop-blur-lg"
+      className="review-marquee-card w-[350px] max-w-[calc(100vw-48px)] h-[306px] border-2 border-white/5 rounded-2xl p-[22px] flex flex-col items-start justify-between flex-shrink-0 backdrop-blur-lg"
       key={review.id}
       style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(0, 0, 0, 0.31) 0%, rgba(51, 51, 51, 0.31) 100%)' }}
     >
@@ -1420,27 +1410,12 @@ export function ReviewSection() {
 
   return (
     <section
-      className="w-full h-max flex flex-col items-center justify-center mt-16 sm:mt-28 relative px-4 sm:px-6 lg:px-8 py-9"
-      style={{
-        backgroundImage: "url('/media/red-grid.png')",
-        backgroundPosition: 'center center',
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '1788px 807px',
-      }}
+      className="review-section w-full h-max flex flex-col items-center justify-center mt-16 sm:mt-28 relative px-4 sm:px-6 lg:px-8 py-9"
     >
       <div className="w-full max-w-2xl flex flex-col items-center">
-        <div className="flex items-center mb-4">
-          <h2 className="font-bold text-3xl lg:text-5xl leading-snug text-center">
-            <span className="text-white drop-shadow-[0_0px_12px_rgba(255,255,255,0.5)]">
-              {reviews.titleLead}
-            </span>{' '}
-            <span className="text-[#FF3A52] drop-shadow-[0_0px_12px_rgba(255,58,82,0.5)]">
-              {reviews.titleAccent}
-            </span>
-          </h2>
-        </div>
+        <SectionHeading lead={reviews.titleLead} accent={reviews.titleAccent} subtitle={reviews.description} />
         <div
-          className="w-full md:w-max h-max flex flex-col md:flex-row items-center border-2 border-white/5 gap-x-3 rounded-2xl backdrop-blur-xl px-3.5 py-2 mb-[22px]"
+          className="review-summary w-full md:w-max h-max flex flex-col md:flex-row items-center border-2 border-white/5 gap-x-3 rounded-2xl backdrop-blur-xl px-3.5 py-2 mb-[22px]"
           style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(0, 0, 0, 0.31) 0%, rgba(51, 51, 51, 0.31) 100%)' }}
         >
           <p className="font-medium text-white/50 text-sm line-clamp-1 leading-normal">{reviews.summaryLabel}</p>
@@ -1454,9 +1429,6 @@ export function ReviewSection() {
             Based on {commerceMetrics.reviewsCount} verified reviews
           </p>
         </div>
-        <p className="font-medium text-sm lg:text-base text-white/55 leading-relaxed text-center">
-          {reviews.description}
-        </p>
       </div>
 
       <div className="container min-h-[330px] relative overflow-hidden flex items-center justify-center mt-5 masked-container">
@@ -1499,27 +1471,13 @@ export function FaqPreview() {
 
   return (
     <section
-      className="w-full flex flex-col items-center mt-16 sm:mt-28 gap-y-12 sm:gap-y-20 relative px-4 sm:px-6 lg:px-8 py-9 bg-none lg:bg-[url('/media/red-grid.png')] bg-[position:center_center] bg-no-repeat bg-[length:1788px_807px]"
+      className="faq-section w-full flex flex-col items-center mt-16 sm:mt-28 gap-y-12 sm:gap-y-20 relative px-4 sm:px-6 lg:px-8 py-9"
     >
       <div className="container flex flex-col items-center mt-28 gap-y-8 relative z-10">
-        <div className="w-full max-w-2xl flex flex-col items-center">
-          <div className="flex items-center mb-3">
-            <h2 className="font-bold text-3xl lg:text-5xl leading-relaxed text-center">
-              <span className="text-white drop-shadow-[0_0px_12px_rgba(255,255,255,0.5)]">
-                {faq.titleLead}{' '}
-              </span>
-              <span className="text-[#FF3A52] drop-shadow-[0_0px_12px_rgba(255,58,82,0.5)]">
-                {faq.titleAccent}
-              </span>
-            </h2>
-          </div>
-          <p className="font-medium text-sm lg:text-base text-white/55 leading-relaxed w-full text-center px-4">
-            {faq.description}
-          </p>
-        </div>
+        <SectionHeading lead={faq.titleLead} accent={faq.titleAccent} subtitle={faq.description} />
 
         <div className="w-full flex flex-col items-start gap-y-4">
-          <div className="w-full h-12 relative bg-transparent">
+          <div className="faq-search w-full h-12 relative bg-transparent">
             <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-white/55 z-2" />
             <input
               type="text"
@@ -1535,19 +1493,14 @@ export function FaqPreview() {
           </div>
 
           <div
-            className="w-full h-max flex flex-col xl:flex-row-reverse border border-white/5 rounded-3xl backdrop-blur-lg p-7 gap-x-[20px]"
+            className="faq-panel w-full h-max flex flex-col border border-white/5 rounded-3xl backdrop-blur-lg p-7"
             style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(0, 0, 0, 0.31) 0%, rgba(71, 71, 71, 0.31) 100%)' }}
           >
-            <SafeImage
-              src={faq.illustrationSrc}
-              alt="FAQ Image"
-              className="!hidden 2xl:!flex w-[453px] h-[344px] mb-3 xl:mb-0 object-cover rounded-xl flex-shrink-0"
-            />
-            <div className="w-full flex flex-col items-center gap-y-[10px] overflow-y-auto max-h-[350px] pr-2">
+            <div className="faq-list w-full flex flex-col items-center gap-y-[10px]">
               {filteredItems.map((item: FaqItemConfig, index: number) => {
                 const isOpen = openIndex === index;
                 return (
-                  <div className="w-full" key={item.question}>
+                  <div className="faq-item w-full" key={item.question}>
                     <button
                       className="w-full h-[49px] flex items-center justify-between bg-[#FFFFFF]/[.08] border border-white/5 rounded-xl p-[9px] cursor-pointer"
                       type="button"
@@ -1607,7 +1560,7 @@ export function PaymentsSection() {
   const cards = recentOrders.map((payment: PublicPaymentFeedEntry) => {
     return (
       <article
-        className="w-[350px] max-w-[calc(100vw-48px)] h-max flex items-center justify-between p-[18px] rounded-2xl border-2 border-white/5 backdrop-blur-lg payment-item flex-shrink-0"
+        className="payment-feed-card w-[350px] max-w-[calc(100vw-48px)] h-max flex items-center justify-between p-[18px] rounded-2xl border-2 border-white/5 backdrop-blur-lg payment-item flex-shrink-0"
         key={payment.orderId}
         style={{ background: 'radial-gradient(74.31% 154.58% at 50% 50%, rgba(0, 0, 0, 0.31) 0%, rgba(51, 51, 51, 0.31) 100%)' }}
       >
@@ -1628,22 +1581,8 @@ export function PaymentsSection() {
   });
 
   return (
-    <section className="container mx-auto flex flex-col items-center mt-16 sm:mt-28 gap-y-12 sm:gap-y-20 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-2xl flex flex-col items-center">
-        <div className="flex items-center mb-3">
-          <h2 className="font-bold text-3xl lg:text-5xl leading-relaxed text-center">
-            <span className="text-white drop-shadow-[0_0px_12px_rgba(255,255,255,0.5)]">
-              {payments.titleLead}{' '}
-            </span>
-            <span className="text-[#FF3A52] drop-shadow-[0_0px_12px_rgba(255,58,82,0.5)]">
-              {payments.titleAccent}
-            </span>
-          </h2>
-        </div>
-        <p className="font-medium text-sm lg:text-base text-white/55 leading-relaxed w-full px-4 text-center">
-          {payments.description}
-        </p>
-      </div>
+    <section className="payments-section container mx-auto flex flex-col items-center mt-16 sm:mt-28 gap-y-12 sm:gap-y-20 px-4 sm:px-6 lg:px-8">
+      <SectionHeading lead={payments.titleLead} accent={payments.titleAccent} subtitle={payments.description} />
 
       <div className="w-full min-h-[100px] relative overflow-hidden flex items-center justify-center masked-container">
         <MarqueeRow speed="30s" className="gap-4">

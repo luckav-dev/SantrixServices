@@ -2593,3 +2593,876 @@
     padding-inline: 12px;
   }
 }
+
+/* dashboard global polish */
+:root {
+  --admin-bg: #060607;
+  --admin-bg-strong: #0d0d0f;
+  --admin-surface: rgba(15, 15, 17, 0.92);
+  --admin-surface-strong: rgba(18, 18, 20, 0.98);
+  --admin-surface-soft: rgba(21, 21, 24, 0.88);
+  --admin-surface-muted: rgba(255, 255, 255, 0.028);
+  --admin-border: rgba(255, 255, 255, 0.055);
+  --admin-border-strong: rgba(255, 255, 255, 0.1);
+  --admin-text: #f6f3f2;
+  --admin-text-soft: rgba(255, 255, 255, 0.66);
+  --admin-text-muted: rgba(255, 255, 255, 0.38);
+  --admin-text-primary: #f6f3f2;
+  --admin-bg-hover: rgba(255, 255, 255, 0.045);
+  --admin-accent: #ff334f;
+  --admin-accent-soft: rgba(255, 51, 79, 0.09);
+  --admin-accent-strong: #ff6377;
+  --admin-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+  --admin-radius-xl: 16px;
+  --admin-radius-lg: 13px;
+  --admin-radius-md: 10px;
+  --admin-sidebar-width: 208px;
+  --admin-grid-gap: 12px;
+}
+
+.admin-shell,
+.admin-auth {
+  font-size: 12px;
+  text-rendering: optimizeLegibility;
+}
+
+.admin-shell::before,
+.admin-auth::before {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 51, 79, 0.08), transparent 28%),
+    radial-gradient(circle at 82% 82%, rgba(255, 83, 107, 0.04), transparent 24%),
+    linear-gradient(180deg, rgba(8, 8, 9, 0.96), rgba(5, 5, 6, 0.985)),
+    url('/media/background.png') center top / cover no-repeat;
+  animation: none;
+}
+
+.admin-shell::after,
+.admin-auth::after {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background-size: 26px 26px;
+  opacity: 0.16;
+}
+
+.admin-auth {
+  padding: 12px;
+}
+
+.admin-auth__layout {
+  gap: 10px;
+}
+
+.admin-auth__showcase,
+.admin-auth__panel {
+  border-radius: 16px;
+  border-color: var(--admin-border);
+  background:
+    linear-gradient(180deg, rgba(16, 16, 18, 0.97), rgba(10, 10, 12, 0.98));
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-auth__showcase {
+  min-height: 520px;
+  padding: 16px;
+  gap: 10px;
+}
+
+.admin-auth__panel {
+  padding: 16px;
+  gap: 10px;
+}
+
+.admin-auth__showcase-copy h1 {
+  max-width: 10ch;
+  margin-bottom: 10px;
+  font-size: clamp(1.6rem, 2.6vw, 2.45rem);
+  line-height: 0.94;
+}
+
+.admin-auth__copy,
+.admin-auth__feature-card p,
+.admin-auth__showcase-list span {
+  line-height: 1.58;
+}
+
+.admin-auth__showcase-brand,
+.admin-auth__feature-card,
+.admin-auth__showcase-list div,
+.admin-auth__signature {
+  border-color: var(--admin-border);
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.admin-auth__feature-grid,
+.admin-auth__actions,
+.admin-auth__showcase-list {
+  gap: 8px;
+}
+
+.admin-sidebar {
+  padding: 8px;
+  background:
+    linear-gradient(180deg, rgba(10, 10, 12, 0.985), rgba(7, 7, 8, 0.97));
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.018);
+}
+
+.admin-sidebar-shell__inner {
+  gap: 10px;
+}
+
+.admin-sidebar-shell__brand,
+.admin-sidebar-shell__workspace,
+.admin-sidebar-shell__signature {
+  min-width: 0;
+}
+
+.admin-sidebar-shell__brand {
+  padding: 4px 4px 2px;
+}
+
+.admin-sidebar-shell__brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.admin-sidebar-shell__brand-copy strong {
+  font-size: 0.78rem;
+}
+
+.admin-sidebar-shell__workspace {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.admin-nav-group {
+  gap: 3px;
+}
+
+.admin-nav-group__head {
+  padding-inline: 6px;
+}
+
+.admin-nav-group__head span {
+  font-size: 0.6rem;
+  letter-spacing: 0.11em;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.admin-nav-link {
+  gap: 9px;
+  padding: 6px 9px;
+  border-radius: 11px;
+  min-height: 0;
+  border-color: transparent;
+}
+
+.admin-nav-link:hover {
+  transform: none;
+  background: rgba(255, 51, 79, 0.06);
+  border-color: rgba(255, 51, 79, 0.1);
+}
+
+.admin-nav-link.is-active {
+  background:
+    linear-gradient(180deg, rgba(255, 51, 79, 0.12), rgba(255, 51, 79, 0.08));
+  border-color: rgba(255, 51, 79, 0.16);
+}
+
+.admin-nav-link__icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-nav-link__copy strong {
+  font-size: 0.78rem;
+}
+
+.admin-topbar {
+  gap: 10px;
+  padding: 10px 16px 8px;
+  background: rgba(8, 8, 9, 0.72);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+}
+
+.admin-topbar__copy p {
+  font-size: 0.56rem;
+}
+
+.admin-topbar__copy h1 {
+  font-size: 0.86rem;
+}
+
+.admin-topbar__meta-pill,
+.admin-topbar__chip,
+.admin-page-hero__meta-pill,
+.admin-pill {
+  min-height: 21px;
+  padding: 0 7px;
+  font-size: 0.63rem;
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.024);
+}
+
+.admin-content {
+  gap: 10px;
+  padding: 12px 16px 20px;
+}
+
+.admin-page-hero {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border-color: rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(90deg, rgba(255, 51, 79, 0.06), transparent 38%),
+    linear-gradient(180deg, rgba(16, 16, 17, 0.98), rgba(10, 10, 11, 0.98));
+}
+
+.admin-page-hero__copy h2 {
+  margin: 1px 0 4px;
+  font-size: clamp(0.98rem, 1.2vw, 1.26rem);
+}
+
+.admin-page-hero__copy p:last-child {
+  max-width: 70ch;
+  font-size: 0.74rem;
+  line-height: 1.44;
+}
+
+.admin-panel[data-admin-page='overview'] > #overview,
+.admin-panel[data-admin-page='branding'] > #branding,
+.admin-panel[data-admin-page='discount'] > #discount,
+.admin-panel[data-admin-page='popup'] > #popup,
+.admin-panel[data-admin-page='navigation'] > #navigation,
+.admin-panel[data-admin-page='categories'] > #categories,
+.admin-panel[data-admin-page='products'] > #products,
+.admin-panel[data-admin-page='payments'] > #payments,
+.admin-panel[data-admin-page='auth'] > #auth,
+.admin-panel[data-admin-page='customers'] > #customers,
+.admin-panel[data-admin-page='orders'] > #orders,
+.admin-panel[data-admin-page='admins'] > #admins,
+.admin-panel[data-admin-page='content'] > #content {
+  gap: 10px;
+}
+
+.admin-section__head {
+  gap: 4px;
+}
+
+.admin-section__head h2,
+.admin-card h3,
+.admin-form-card h3,
+.admin-preview-card h3 {
+  font-size: 0.86rem;
+  line-height: 1.18;
+}
+
+.admin-card,
+.admin-form-card,
+.admin-preview-card,
+.admin-group-card,
+.admin-inline-card,
+.admin-list-card,
+.admin-empty-panel,
+.admin-toolbar,
+.admin-detail-panel,
+.admin-member-card,
+.admin-table-card,
+.admin-feed-card,
+.admin-category-card,
+.admin-product-card {
+  border-color: rgba(255, 255, 255, 0.058);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(17, 17, 18, 0.95), rgba(12, 12, 13, 0.97));
+  box-shadow: none;
+}
+
+.admin-card,
+.admin-empty-panel,
+.admin-toolbar,
+.admin-detail-panel,
+.admin-table-card,
+.admin-feed-card,
+.admin-form-card,
+.admin-preview-card,
+.admin-group-card,
+.admin-inline-card,
+.admin-member-card {
+  padding: 9px;
+}
+
+.admin-form-card__head,
+.admin-preview-card__head {
+  margin-bottom: 7px;
+}
+
+.admin-form-card__body,
+.admin-preview-card__body,
+.admin-editor-column,
+.admin-data-stack,
+.admin-stack,
+.admin-grid,
+.admin-grid--2,
+.admin-grid--stats,
+.admin-grid--products,
+.admin-editor-layout,
+.admin-data-grid {
+  gap: 10px;
+}
+
+.admin-grid--stats .admin-stat-card,
+.admin-grid--stats-compact .admin-stat-card {
+  min-height: 0;
+}
+
+.admin-stat-card {
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-stat-card__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 51, 79, 0.1);
+  color: #ffc8d0;
+}
+
+.admin-stat-card__copy {
+  gap: 3px;
+}
+
+.admin-stat-card__label {
+  font-size: 0.6rem;
+  letter-spacing: 0.09em;
+}
+
+.admin-stat-card__copy strong {
+  font-size: 0.9rem;
+}
+
+.admin-stat-card__copy p {
+  font-size: 0.67rem;
+  line-height: 1.35;
+}
+
+.admin-field {
+  gap: 3px;
+}
+
+.admin-field__label {
+  font-size: 0.66rem;
+}
+
+.admin-field__hint {
+  font-size: 0.6rem;
+}
+
+.admin-field input,
+.admin-field textarea,
+.admin-field select,
+.admin-row select,
+.admin-toolbar input {
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.022);
+  font-size: 0.73rem;
+  line-height: 1.32;
+}
+
+.admin-field textarea {
+  min-height: 70px;
+}
+
+.admin-field input:focus,
+.admin-field textarea:focus,
+.admin-field select:focus,
+.admin-row select:focus,
+.admin-toolbar input:focus {
+  border-color: rgba(255, 51, 79, 0.34);
+  box-shadow: 0 0 0 3px rgba(255, 51, 79, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-toggle {
+  min-height: 34px;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  font-size: 0.73rem;
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.admin-toggle input {
+  width: 16px;
+  height: 16px;
+}
+
+.admin-button,
+.admin-utility-button,
+.admin-button--social {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 0.69rem;
+  font-weight: 700;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--admin-text);
+  box-shadow: none;
+}
+
+.admin-button--small {
+  min-height: 26px;
+  padding-inline: 8px;
+}
+
+.admin-button:hover,
+.admin-utility-button:hover,
+.admin-button--social:hover:not(:disabled) {
+  transform: none;
+  background: rgba(255, 51, 79, 0.07);
+  border-color: rgba(255, 51, 79, 0.16);
+  box-shadow: none;
+}
+
+.admin-button--primary,
+.admin-utility-button--primary {
+  background: linear-gradient(180deg, rgba(255, 51, 79, 0.16), rgba(255, 51, 79, 0.22));
+  border-color: rgba(255, 51, 79, 0.2);
+}
+
+.admin-button--danger,
+.admin-utility-button--danger {
+  color: #ffb7c1;
+  border-color: rgba(255, 109, 131, 0.18);
+}
+
+.admin-inline-tip,
+.admin-detail-list > div,
+.admin-order-item,
+.admin-key-metrics > div {
+  border-color: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.024);
+}
+
+.admin-inline-tip {
+  gap: 9px;
+  padding: 9px 10px;
+  font-size: 0.72rem;
+}
+
+.admin-category-card,
+.admin-product-card,
+.admin-list-card,
+.admin-member-card {
+  padding: 12px;
+}
+
+.admin-category-card,
+.admin-product-card {
+  gap: 10px;
+}
+
+.admin-category-card__copy strong,
+.admin-product-card__copy strong {
+  font-size: 0.88rem;
+}
+
+.admin-category-card__copy span,
+.admin-product-card__copy span {
+  font-size: 0.68rem;
+}
+
+.admin-category-card__copy p,
+.admin-product-card__copy p {
+  font-size: 0.69rem;
+  line-height: 1.42;
+}
+
+.admin-product-card__identity {
+  gap: 10px;
+}
+
+.admin-product-card__media {
+  width: 48px;
+  height: 48px;
+  border-radius: 11px;
+}
+
+.admin-list-card {
+  padding: 12px 14px;
+}
+
+.admin-list-card:hover,
+.admin-list-card.is-active {
+  transform: none;
+  background: rgba(255, 51, 79, 0.045);
+  border-color: rgba(255, 51, 79, 0.14);
+}
+
+.admin-list-card__identity h3 {
+  font-size: 0.78rem;
+}
+
+.admin-list-card__avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+}
+
+.admin-list-card__avatar--large {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+}
+
+.admin-toolbar {
+  gap: 8px;
+  padding: 9px 10px;
+}
+
+.admin-toolbar__search i {
+  left: 12px;
+}
+
+.admin-toolbar__search input {
+  padding-left: 34px;
+}
+
+.admin-toolbar__filters,
+.admin-toolbar__meta,
+.admin-row,
+.admin-chip-row,
+.admin-list-card__meta,
+.admin-order-card__summary {
+  gap: 6px;
+}
+
+.admin-detail-panel {
+  gap: 9px;
+}
+
+.admin-key-metrics {
+  gap: 7px;
+}
+
+.admin-key-metrics span {
+  margin-bottom: 5px;
+  font-size: 0.64rem;
+}
+
+.admin-key-metrics strong {
+  font-size: 0.9rem;
+}
+
+.admin-detail-list {
+  gap: 4px;
+}
+
+.admin-detail-list > div {
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 10px;
+}
+
+.admin-detail-list span {
+  font-size: 0.6rem;
+}
+
+.admin-detail-list strong {
+  font-size: 0.7rem;
+}
+
+.admin-order-item {
+  padding: 8px 9px;
+  border-radius: 11px;
+}
+
+.admin-order-item span {
+  font-size: 0.68rem;
+}
+
+.admin-product-list {
+  max-height: 380px;
+  display: grid;
+  gap: 6px;
+}
+
+.admin-product-list__item {
+  gap: 8px;
+  padding: 7px;
+  border-radius: 10px;
+}
+
+.admin-product-list__media {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+}
+
+.admin-product-list__copy strong {
+  font-size: 0.74rem;
+}
+
+.admin-product-list__copy span {
+  font-size: 0.64rem;
+}
+
+.admin-product-preview,
+.admin-brand-preview,
+.admin-banner-preview__background,
+.admin-nav-preview,
+.admin-categories-preview,
+.admin-content-preview,
+.admin-payment-preview,
+.admin-login-preview,
+.admin-admins-preview {
+  border-radius: 14px;
+  border-color: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.022);
+  padding: 10px;
+}
+
+.admin-overview {
+  gap: 10px;
+}
+
+.admin-overview__intro,
+.admin-overview__grid,
+.admin-overview__bottom,
+.admin-overview__stack {
+  gap: 10px;
+}
+
+.admin-chart-card {
+  padding: 10px;
+}
+
+.admin-tabs__list {
+  padding: 3px;
+  gap: 4px;
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-tabs__trigger {
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 0.7rem;
+}
+
+.admin-tabs__content {
+  margin-top: 8px;
+}
+
+.admin-overview__chart-empty {
+  min-height: 190px;
+  gap: 7px;
+}
+
+.admin-table-wrap {
+  border-radius: 12px;
+  overflow: auto;
+}
+
+.admin-table {
+  font-size: 0.73rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 7px 6px;
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.admin-table th {
+  font-size: 0.59rem;
+  letter-spacing: 0.09em;
+}
+
+.admin-table__identity span {
+  font-size: 0.64rem;
+}
+
+.admin-editor-drawer-scrim {
+  padding: 10px;
+  background: rgba(5, 5, 6, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.admin-editor-drawer {
+  width: min(680px, calc(100vw - 20px));
+  height: calc(100vh - 20px);
+  height: calc(100dvh - 20px);
+  border-radius: 18px;
+  border-color: rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(17, 17, 18, 0.985), rgba(10, 10, 11, 0.985));
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
+}
+
+.admin-editor-drawer__header,
+.admin-editor-drawer__footer {
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.admin-editor-drawer__body {
+  padding: 16px;
+}
+
+.admin-credit {
+  padding-top: 0;
+}
+
+.admin-credit__logo {
+  max-height: 24px;
+  opacity: 0.8;
+}
+
+.checkout-stage__loader {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+  border-color: rgba(255, 51, 79, 0.14);
+  border-top-color: var(--admin-accent);
+}
+
+@media (max-width: 1240px) {
+  .admin-content {
+    padding-inline: 14px;
+  }
+
+  .admin-grid--stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .admin-topbar,
+  .admin-content {
+    padding-inline: 12px;
+  }
+
+  .admin-topbar {
+    gap: 8px;
+  }
+
+  .admin-topbar__main,
+  .admin-topbar__actions {
+    gap: 6px;
+    justify-content: flex-start;
+  }
+
+  .admin-page-hero {
+    padding: 12px;
+  }
+
+  .admin-page-hero__copy h2 {
+    font-size: 1.04rem;
+  }
+
+  .admin-page-hero__meta {
+    gap: 5px;
+  }
+
+  .admin-grid--stats,
+  .admin-key-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-auth {
+    padding: 10px;
+  }
+
+  .admin-auth__panel,
+  .admin-auth__showcase {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .admin-sidebar {
+    width: min(86vw, 290px);
+    padding: 8px;
+  }
+
+  .admin-topbar,
+  .admin-content {
+    padding-inline: 10px;
+  }
+
+  .admin-content {
+    gap: 8px;
+    padding-bottom: 16px;
+  }
+
+  .admin-page-hero,
+  .admin-card,
+  .admin-form-card,
+  .admin-preview-card,
+  .admin-group-card,
+  .admin-inline-card,
+  .admin-member-card,
+  .admin-toolbar,
+  .admin-detail-panel,
+  .admin-category-card,
+  .admin-product-card,
+  .admin-list-card {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .admin-topbar__copy h1 {
+    font-size: 0.8rem;
+  }
+
+  .admin-section__head h2,
+  .admin-card h3,
+  .admin-form-card h3,
+  .admin-preview-card h3 {
+    font-size: 0.82rem;
+  }
+
+  .admin-muted-text,
+  .admin-page-hero__copy p:last-child {
+    font-size: 0.75rem;
+  }
+
+  .admin-grid--stats,
+  .admin-key-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-editor-drawer-scrim {
+    padding: 0;
+  }
+
+  .admin-editor-drawer {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .admin-editor-drawer__header,
+  .admin-editor-drawer__body,
+  .admin-editor-drawer__footer {
+    padding-inline: 12px;
+  }
+}

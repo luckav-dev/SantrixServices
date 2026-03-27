@@ -144,7 +144,7 @@ const adminPages = [
     icon: 'fa-solid fa-credit-card',
     eyebrow: 'Pagos',
     title: 'Gateway, identidad y checkout',
-    description: 'Controla qué productos salen por Tebex o PayPal y qué compras exigen identidad validada.',
+    description: 'Controla qué productos salen por Tebex, PayPal o Stripe y qué compras exigen identidad validada.',
   },
   {
     slug: 'auth',
@@ -456,6 +456,10 @@ function getCheckoutProviderLabel(provider: ProductCheckoutProvider | string) {
 
   if (provider === 'paypal') {
     return 'PayPal';
+  }
+
+  if (provider === 'stripe') {
+    return 'Stripe';
   }
 
   if (provider === 'external') {
@@ -1346,6 +1350,7 @@ export function AdminDashboardPage() {
   const paymentSummary = {
     tebex: products.filter((product) => product.checkoutProvider === 'tebex').length,
     paypal: products.filter((product) => product.checkoutProvider === 'paypal').length,
+    stripe: products.filter((product) => product.checkoutProvider === 'stripe').length,
     external: products.filter((product) => product.checkoutProvider === 'external').length,
     requiresIdentity: products.filter((product) => product.requiresIdentity).length,
   };
@@ -1508,6 +1513,11 @@ export function AdminDashboardPage() {
       label: 'PayPal',
       value: paymentSummary.paypal,
       detail: 'Productos preparados para Orders API y captura server-side.',
+    },
+    {
+      label: 'Stripe',
+      value: paymentSummary.stripe,
+      detail: 'Productos que salen por Checkout Session alojada y webhook real.',
     },
     {
       label: 'External',

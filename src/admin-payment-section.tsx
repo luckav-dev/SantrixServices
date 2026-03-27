@@ -46,6 +46,10 @@ function getCheckoutProviderLabel(provider: ProductCheckoutProvider | string) {
     return 'PayPal';
   }
 
+  if (provider === 'stripe') {
+    return 'Stripe';
+  }
+
   if (provider === 'external') {
     return 'External';
   }
@@ -161,6 +165,7 @@ export function AdminPaymentsSection({
                   >
                     <option value="tebex">Tebex</option>
                     <option value="paypal">PayPal</option>
+                    <option value="stripe">Stripe</option>
                     <option value="external">External</option>
                   </select>
                 </AdminField>
@@ -172,29 +177,35 @@ export function AdminPaymentsSection({
                   onChange={onRequiresIdentityChange}
                 />
 
-                <AdminField label="Tebex package id" hint="Si está vacío, usa open/escrow version id como fallback">
-                  <input
-                    value={productDraft.tebexPackageId}
-                    disabled={!canManageSensitiveSettings}
-                    onChange={(event) => onTebexPackageIdChange(event.currentTarget.value)}
-                  />
-                </AdminField>
+                {productDraft.checkoutProvider === 'tebex' ? (
+                  <>
+                    <AdminField label="Tebex package id" hint="Si está vacío, usa open/escrow version id como fallback">
+                      <input
+                        value={productDraft.tebexPackageId}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) => onTebexPackageIdChange(event.currentTarget.value)}
+                      />
+                    </AdminField>
 
-                <AdminField label="Tebex server id" hint="Opcional, útil si el package se liga a un server">
-                  <input
-                    value={productDraft.tebexServerId}
-                    disabled={!canManageSensitiveSettings}
-                    onChange={(event) => onTebexServerIdChange(event.currentTarget.value)}
-                  />
-                </AdminField>
+                    <AdminField label="Tebex server id" hint="Opcional, útil si el package se liga a un server">
+                      <input
+                        value={productDraft.tebexServerId}
+                        disabled={!canManageSensitiveSettings}
+                        onChange={(event) => onTebexServerIdChange(event.currentTarget.value)}
+                      />
+                    </AdminField>
+                  </>
+                ) : null}
 
-                <AdminField label="External checkout URL" hint="Solo para productos external">
-                  <input
-                    value={productDraft.externalCheckoutUrl}
-                    disabled={!canManageSensitiveSettings}
-                    onChange={(event) => onExternalCheckoutUrlChange(event.currentTarget.value)}
-                  />
-                </AdminField>
+                {productDraft.checkoutProvider === 'external' ? (
+                  <AdminField label="External checkout URL" hint="Solo para productos external">
+                    <input
+                      value={productDraft.externalCheckoutUrl}
+                      disabled={!canManageSensitiveSettings}
+                      onChange={(event) => onExternalCheckoutUrlChange(event.currentTarget.value)}
+                    />
+                  </AdminField>
+                ) : null}
               </div>
 
               <AdminInlineTip icon="fa-solid fa-shield-halved">
@@ -204,6 +215,12 @@ export function AdminPaymentsSection({
                   ? ' y exigirá identidad validada.'
                   : ' sin exigir login de identidad extra.'}
               </AdminInlineTip>
+
+              {productDraft.checkoutProvider === 'stripe' ? (
+                <AdminInlineTip icon="fa-solid fa-credit-card">
+                  Stripe usa un checkout alojado. No hace falta configurar IDs extra por producto: se generan las líneas automáticamente desde el precio y el título.
+                </AdminInlineTip>
+              ) : null}
 
               <div className="admin-row admin-row--wrap">
                 {canManageSensitiveSettings ? (

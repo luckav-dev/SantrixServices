@@ -4,13 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/generate-seo-assets.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "scrape:store": "node scripts/scrape-store.mjs",
     "seed:supabase": "node scripts/generate-supabase-seed.mjs",
-    "setup:supabase": "node scripts/generate-supabase-seed.mjs"
+    "setup:supabase": "node scripts/generate-supabase-seed.mjs",
+    "seo:generate": "node scripts/generate-seo-assets.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

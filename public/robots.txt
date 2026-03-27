@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /login
+Disallow: /account
+Disallow: /checkout/
+Disallow: /auth/callback
+
+Sitemap: http://localhost:5173/sitemap.xml

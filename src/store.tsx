@@ -87,7 +87,7 @@ export interface Category {
   showInNavigation?: boolean;
 }
 
-export type ProductCheckoutProvider = 'tebex' | 'paypal' | 'external';
+export type ProductCheckoutProvider = 'tebex' | 'paypal' | 'stripe' | 'external';
 
 export interface Product {
   categoryId: string;
@@ -430,7 +430,11 @@ function buildPriceText(amount: number) {
 }
 
 function inferProductCheckoutProvider(product: Partial<Product>): ProductCheckoutProvider {
-  if (product.checkoutProvider === 'paypal' || product.checkoutProvider === 'external') {
+  if (
+    product.checkoutProvider === 'paypal' ||
+    product.checkoutProvider === 'stripe' ||
+    product.checkoutProvider === 'external'
+  ) {
     return product.checkoutProvider;
   }
 

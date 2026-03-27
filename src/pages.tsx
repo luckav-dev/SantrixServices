@@ -41,6 +41,14 @@ import {
 } from './customer-auth-utils';
 import { hasOptionalMedia } from './media';
 import { SafeImage } from './safe-image';
+import {
+  buildAbsoluteUrl,
+  buildBreadcrumbJsonLd,
+  buildOrganizationJsonLd,
+  buildWebsiteJsonLd,
+  PageSeo,
+  stripHtml,
+} from './seo';
 
 function HeroVisual() {
   const { siteConfig } = useStore();
@@ -127,10 +135,10 @@ function VideoShowcase() {
       href={video.url}
       target="_blank"
       rel="noreferrer"
-      className="flex flex-col gap-y-3 group youtube-video max-[640px]:min-w-[260px] max-[640px]:max-w-[260px] sm:w-[450px] flex-shrink-0"
+      className="video-showcase__card flex flex-col gap-y-3 group youtube-video max-[640px]:min-w-[260px] max-[640px]:max-w-[260px] sm:w-[450px] flex-shrink-0"
       key={video.url}
     >
-      <div className="w-full aspect-video sm:aspect-auto sm:h-[250px] rounded-2xl overflow-hidden border-2 border-white/5 group-hover:border-white/10 transition-colors duration-200">
+      <div className="video-showcase__thumb w-full aspect-video sm:aspect-auto sm:h-[250px] rounded-2xl overflow-hidden border-2 border-white/5 group-hover:border-white/10 transition-colors duration-200">
         <SafeImage src={videos.thumbs[index % videos.thumbs.length]} alt={video.name} className="w-full h-full object-cover" />
       </div>
       <p className="text-white/70 group-hover:text-white font-medium text-sm sm:text-lg line-clamp-2 transition-colors duration-200">
@@ -142,7 +150,7 @@ function VideoShowcase() {
   return (
     <section
       id="youtube-video-section"
-      className="w-full flex flex-col items-center mt-16 sm:mt-28 relative px-4 sm:px-6 lg:px-8 py-9"
+      className="video-showcase home-video-section w-full flex flex-col items-center mt-16 sm:mt-28 relative px-4 sm:px-6 lg:px-8 py-9"
       style={{
         backgroundImage: "url('/media/white-grid.png')",
         backgroundPosition: 'center center',
@@ -228,7 +236,7 @@ function ProductReviewPanel({ product }: { product: Product }) {
   }
 
   return (
-    <section className="content-section content-section--reviews">
+    <section className="content-section content-section--reviews product-reviews-section">
       <SectionHeading
         lead="Verified"
         accent="Reviews"
@@ -239,14 +247,14 @@ function ProductReviewPanel({ product }: { product: Product }) {
         }
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-6">
-        <article className="summary-card flex flex-col gap-5 p-6">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-6 product-reviews-layout">
+        <article className="summary-card flex flex-col gap-5 p-6 product-reviews-summary">
+          <div className="flex items-start justify-between gap-4 flex-wrap product-reviews-summary__top">
             <div>
               <p className="text-white/45 text-sm font-semibold uppercase tracking-[0.16em]">Review Summary</p>
               <h3 className="text-white text-2xl sm:text-3xl font-bold mt-2">{product.title}</h3>
             </div>
-            <div className="px-4 py-3 rounded-2xl border border-white/8 bg-white/[0.04] text-center">
+            <div className="px-4 py-3 rounded-2xl border border-white/8 bg-white/[0.04] text-center product-reviews-summary__score">
               <strong className="block text-white text-2xl font-bold">
                 {productReviews.length ? averageRating.toFixed(1) : '0.0'}
               </strong>
@@ -256,7 +264,7 @@ function ProductReviewPanel({ product }: { product: Product }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 text-[#FF3A52] text-lg">
+          <div className="flex items-center gap-1 text-[#FF3A52] text-lg product-reviews-summary__stars">
             {Array.from({ length: 5 }, (_, index) => (
               <i
                 className={`fa-solid fa-star ${index < Math.round(averageRating) ? 'opacity-100' : 'opacity-20 text-white'}`}
@@ -373,10 +381,10 @@ function ProductReviewPanel({ product }: { product: Product }) {
           )}
         </article>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 product-reviews-list">
           {productReviews.length ? (
             productReviews.map((review) => (
-              <article className="review-card" key={review.id}>
+              <article className="review-card product-review-card" key={review.id}>
                 <div className="review-card__header">
                   <div className="w-12 h-12 rounded-full border border-white/10 bg-white/[0.06] text-white font-bold flex items-center justify-center">
                     {review.displayName
@@ -400,7 +408,7 @@ function ProductReviewPanel({ product }: { product: Product }) {
               </article>
             ))
           ) : (
-            <article className="summary-card flex flex-col items-start justify-center gap-3 p-6 md:col-span-2">
+            <article className="summary-card flex flex-col items-start justify-center gap-3 p-6 md:col-span-2 product-reviews-empty">
               <p className="text-white font-semibold">Aún no hay reseñas verificadas</p>
               <p className="text-white/55 text-sm">
                 Cuando los compradores de este producto dejen una reseña real, aparecerá aquí.
@@ -416,6 +424,15 @@ function ProductReviewPanel({ product }: { product: Product }) {
 export function HomePage() {
   const { commerceMetrics, featuredProducts, siteConfig } = useStore();
   const { achievements, homeHero, storeText, whyChooseUs } = siteConfig;
+  const socialLinks = siteConfig.header.socialLinks
+    .map((link) => link.href)
+    .filter((href) => /^https?:\/\//i.test(href));
+  const homeTitle = `${siteConfig.brandName} | ${siteConfig.studioName}`;
+  const homeDescription = homeHero.description || `${siteConfig.brandName} premium storefront.`;
+  const homeImage =
+    siteConfig.brandAssets.heroBigLogoSrc ||
+    siteConfig.brandAssets.headerLogoSrc ||
+    siteConfig.brandAssets.footerLogoSrc;
   const achievementItems = [
     {
       label: achievements.stats[0]?.label || 'Sales',
@@ -439,11 +456,39 @@ export function HomePage() {
 
   return (
     <>
+      <PageSeo
+        title={homeTitle}
+        description={homeDescription}
+        image={homeImage}
+        imageAlt={siteConfig.brandAssets.headerLogoAlt || siteConfig.brandName}
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+        keywords={[
+          siteConfig.brandName,
+          siteConfig.studioName,
+          'FiveM scripts',
+          'FiveM store',
+          'escrow scripts',
+          'server resources',
+        ]}
+        jsonLd={[
+          buildOrganizationJsonLd({
+            name: siteConfig.studioName,
+            description: homeDescription,
+            logo: siteConfig.brandAssets.headerLogoSrc,
+            sameAs: socialLinks,
+          }),
+          buildWebsiteJsonLd({
+            name: siteConfig.brandName,
+            description: homeDescription,
+          }),
+        ]}
+      />
       <section className="hero-section w-full relative px-4 sm:px-6 lg:px-8">
-        <div className="hero-section__inner container mx-auto w-full flex items-center flex-col lg:flex-row-reverse justify-center xl:justify-between">
+        <div className="hero-section__inner container mx-auto w-full flex flex-col justify-start items-center xl:flex-row-reverse xl:justify-between">
           <HeroVisual />
-          <div className="hero-copy flex flex-col items-center xl:items-start space-y-8">
-            <div className="hero-copy__group flex flex-col items-center xl:items-start space-y-4">
+          <div className="hero-copy w-full flex flex-col items-center xl:items-start space-y-8">
+            <div className="hero-copy__group w-full flex flex-col items-center xl:items-start space-y-4">
               <h1 className="hero-copy__heading uppercase text-white text-center xl:text-left">
                 {homeHero.titlePrefix}{' '}
                 <span
@@ -495,7 +540,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="w-full container mx-auto flex flex-col items-center gap-y-4 sm:gap-y-7 mt-8 sm:mt-20 lg:mt-28 relative z-10 px-4 sm:px-6 lg:px-8 ">
+      <section className="home-featured-section w-full mx-auto flex flex-col items-center gap-y-4 sm:gap-y-7 mt-8 sm:mt-20 lg:mt-28 relative z-10 px-4 sm:px-6 lg:px-8 ">
         <DividerTitle label={storeText.featuredProductsLabel} />
         <div className="featured-strip w-full relative overflow-hidden flex items-center justify-center gap-2 sm:gap-4 mt-4 sm:mt-7 masked-container">
           <MarqueeRow speed="36s" className="gap-2 sm:gap-3 lg:gap-4 pl-8 sm:pl-20 lg:pl-32">
@@ -512,27 +557,10 @@ export function HomePage() {
 
       {whyChooseUs.enabled ? (
         <section
-          className="w-full h-full mt-16 sm:mt-28 px-4 sm:px-6 lg:px-8 py-9"
-          style={{
-            backgroundImage: "url('/media/white-grid.png')",
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'center center',
-          }}
+          className="home-benefits-section w-full h-full mt-16 sm:mt-28 px-4 sm:px-6 lg:px-8 py-9"
         >
           <div className="container mx-auto flex flex-col items-center">
-            <div className="w-full max-w-2xl flex flex-col items-center">
-              <div className="flex items-center mb-3">
-                <h2 className="font-bold text-3xl lg:text-5xl leading-relaxed text-center">
-                  <span className="text-white drop-shadow-[0_0px_12px_rgba(255,255,255,0.5)]">{whyChooseUs.titleLead}</span>{' '}
-                  <span className="text-[#FF3A52] drop-shadow-[0_0px_12px_rgba(255,58,82,0.5)]">
-                    {whyChooseUs.titleAccent}
-                  </span>
-                </h2>
-              </div>
-              <p className="font-medium text-sm lg:text-base text-white/55 leading-relaxed w-full text-center px-4">
-                {whyChooseUs.description}
-              </p>
-            </div>
+            <SectionHeading lead={whyChooseUs.titleLead} accent={whyChooseUs.titleAccent} subtitle={whyChooseUs.description} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 mt-12 gap-10">
               {whyChooseUs.items.map((item, index) => {
@@ -595,7 +623,7 @@ export function HomePage() {
                     href={item.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex flex-col items-start p-6 rounded-2xl border-2 border-white/5 hover:border-white/10 transition-colors duration-200 cursor-pointer backdrop-blur-lg"
+                    className="benefit-card benefit-card--home flex flex-col items-start p-6 rounded-2xl border-2 border-white/5 hover:border-white/10 transition-colors duration-200 cursor-pointer backdrop-blur-lg"
                     style={{ background: cardBg }}
                     key={item.title}
                   >
@@ -603,7 +631,7 @@ export function HomePage() {
                   </a>
                 ) : (
                   <Link
-                    className="flex flex-col items-start p-6 rounded-2xl border-2 border-white/5 hover:border-white/10 transition-colors duration-200 cursor-pointer backdrop-blur-lg"
+                    className="benefit-card benefit-card--home flex flex-col items-start p-6 rounded-2xl border-2 border-white/5 hover:border-white/10 transition-colors duration-200 cursor-pointer backdrop-blur-lg"
                     style={{ background: cardBg }}
                     to={item.href}
                     key={item.title}
@@ -618,27 +646,15 @@ export function HomePage() {
       ) : null}
 
       {achievements.enabled ? (
-        <section className="container mx-auto flex flex-col items-center mt-16 sm:mt-28 px-4 sm:px-6 lg:px-8">
-          <div className="w-full max-w-2xl flex flex-col items-center">
-            <div className="flex items-center mb-2">
-              <h2 className="font-bold text-3xl lg:text-5xl leading-relaxed text-center">
-                <span className="text-white drop-shadow-[0_0px_12px_rgba(255,255,255,0.5)]">{achievements.titleLead}</span>{' '}
-                <span className="text-[#FF3A52] drop-shadow-[0_0px_12px_rgba(255,58,82,0.5)]">
-                  {achievements.titleAccent}
-                </span>
-              </h2>
-            </div>
-            <p className="font-medium text-sm lg:text-base text-white/55 leading-relaxed text-center">
-              {achievements.description}
-            </p>
-          </div>
+        <section className="home-achievements-section content-section--achievements container mx-auto flex flex-col items-center mt-16 sm:mt-28 px-4 sm:px-6 lg:px-8">
+          <SectionHeading lead={achievements.titleLead} accent={achievements.titleAccent} subtitle={achievements.description} />
 
           <div className="stats-grid w-full max-w-[1080px] mx-auto items-center justify-items-center gap-y-10 mt-10">
             {achievementItems.map((stat) => {
               const isAccent = Boolean(stat.accent);
 
               return (
-                <div className="flex flex-col items-center gap-y-2" key={stat.label}>
+                <div className={`stat-card flex flex-col items-center gap-y-2 ${isAccent ? 'is-accent' : ''}`.trim()} key={stat.label}>
                   <div className="w-max flex items-end">
                     <h2
                       className={`font-bold text-5xl sm:text-6xl md:text-7xl lg:text-8xl ${isAccent
@@ -679,7 +695,7 @@ export function HomePage() {
 
 export function CategoryPage() {
   const { categoryId = '' } = useParams();
-  const { categories, getCategory, getProduct } = useStore();
+  const { categories, getCategory, getProduct, siteConfig } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [framework, setFramework] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(searchTerm);
@@ -705,9 +721,49 @@ export function CategoryPage() {
 
     return matchesSearch && matchesFramework;
   });
+  const categoryDescription = category.description || `Browse ${category.label} packages from ${siteConfig.brandName}.`;
+  const categoryImage = allProducts[0]?.image || siteConfig.brandAssets.headerLogoSrc;
 
   return (
     <>
+      <PageSeo
+        title={`${category.label} | ${siteConfig.brandName}`}
+        description={categoryDescription}
+        image={categoryImage}
+        imageAlt={category.label}
+        type="website"
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+        keywords={[
+          category.label,
+          category.heading,
+          siteConfig.brandName,
+          ...allProducts.flatMap((product) => product.frameworks).slice(0, 8),
+        ]}
+        jsonLd={[
+          buildBreadcrumbJsonLd([
+            { name: 'Home', path: '/' },
+            { name: category.label, path: `/category/${category.id}` },
+          ]),
+          {
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: `${category.label} | ${siteConfig.brandName}`,
+            description: categoryDescription,
+            url: buildAbsoluteUrl(`/category/${category.id}`),
+            isPartOf: buildAbsoluteUrl('/'),
+            mainEntity: {
+              '@type': 'ItemList',
+              itemListElement: allProducts.slice(0, 12).map((product, index) => ({
+                '@type': 'ListItem',
+                position: index + 1,
+                url: buildAbsoluteUrl(getProductHref(product.slug)),
+                name: product.title,
+              })),
+            },
+          },
+        ]}
+      />
       <section className="category-page__hero container mx-auto flex flex-col items-start pb-8 sm:pb-10 lg:pb-12 px-6">
         <div className="max-w-[860px] w-full flex flex-col items-center md:items-start gap-y-3 mb-8 md:mb-12 px-4 md:px-0">
           <div id="category-header" className="flex items-center gap-x-3 text-center md:text-left">
@@ -811,7 +867,7 @@ export function ProductPage() {
 }
 
 function ProductDetails({ product }: { product: Product }) {
-  const { addToCart, currency, getCategory, getProduct, siteConfig } = useStore();
+  const { addToCart, currency, getCategory, getProduct, recentReviews, siteConfig } = useStore();
   const { storeText } = siteConfig;
   const [selectedImage, setSelectedImage] = useState(0);
 
@@ -820,6 +876,10 @@ function ProductDetails({ product }: { product: Product }) {
   );
 
   const relatedCategory = getCategory(product.categories[0]);
+  const productReviews = recentReviews.filter((review) => review.productSlug === product.slug);
+  const averageRating = productReviews.length
+    ? productReviews.reduce((sum, review) => sum + review.rating, 0) / productReviews.length
+    : 0;
   const relatedProducts = (relatedCategory?.productSlugs ?? [])
     .filter((slug) => slug !== product.slug)
     .map((slug) => getProduct(slug))
@@ -830,10 +890,69 @@ function ProductDetails({ product }: { product: Product }) {
       ? 'Tebex'
       : product.checkoutProvider === 'paypal'
         ? 'PayPal'
+        : product.checkoutProvider === 'stripe'
+          ? 'Stripe'
         : 'External';
+  const productDescription = stripHtml(product.excerpt || product.descriptionHtml) || `${product.title} from ${siteConfig.brandName}.`;
+  const productTitle = `${product.fullTitle || product.title} | ${siteConfig.brandName}`;
+  const productImage = gallery[0] ?? siteConfig.brandAssets.headerLogoSrc;
 
   return (
     <>
+      <PageSeo
+        title={productTitle}
+        description={productDescription}
+        image={productImage}
+        imageAlt={product.title}
+        type="product"
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+        keywords={[
+          product.title,
+          product.fullTitle,
+          product.categoryLabel,
+          checkoutLabel,
+          siteConfig.brandName,
+          ...product.frameworks,
+        ]}
+        jsonLd={[
+          buildBreadcrumbJsonLd([
+            { name: 'Home', path: '/' },
+            {
+              name: relatedCategory?.label || product.categoryLabel,
+              path: relatedCategory ? `/category/${relatedCategory.id}` : '/',
+            },
+            { name: product.title, path: getProductHref(product.slug) },
+          ]),
+          {
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: product.fullTitle || product.title,
+            description: productDescription,
+            image: gallery.map((image) => buildAbsoluteUrl(image)),
+            sku: product.slug,
+            category: product.categoryLabel,
+            brand: {
+              '@type': 'Brand',
+              name: siteConfig.brandName,
+            },
+            offers: {
+              '@type': 'Offer',
+              priceCurrency: 'EUR',
+              price: product.priceValue.toFixed(2),
+              availability: 'https://schema.org/InStock',
+              url: buildAbsoluteUrl(getProductHref(product.slug)),
+            },
+            aggregateRating: productReviews.length
+              ? {
+                '@type': 'AggregateRating',
+                ratingValue: Number(averageRating.toFixed(1)),
+                reviewCount: productReviews.length,
+              }
+              : undefined,
+          },
+        ]}
+      />
       <section className="store-product container mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 items-start justify-between gap-x-10 gap-y-6 py-6 lg:py-16 overflow-hidden">
         <div className="store-product__gallery w-full flex flex-col items-start gap-y-[18px]">
           <PageBackLink product={product} />
@@ -1098,24 +1217,38 @@ export function CartPage() {
       ? 'Tebex'
       : cartLines[0]?.product.checkoutProvider === 'paypal'
         ? 'PayPal'
+        : cartLines[0]?.product.checkoutProvider === 'stripe'
+          ? 'Stripe'
         : cartLines[0]?.product.checkoutProvider === 'external'
           ? 'External'
           : null;
   const requiresIdentity = cartLines.some((line) => line.product.requiresIdentity);
+  const checkoutDescription = cartLines.length
+    ? `${totalItemsCount} item${totalItemsCount === 1 ? '' : 's'} ready to validate and pay securely.`
+    : storeText.checkoutEmptyDescription;
 
   if (completed) {
     return (
-      <section className="checkout-page checkout-page--success">
-        <div className="success-card">
-          <Sparkles size={26} />
-          <h1>{storeText.checkoutSuccessTitle}</h1>
-          <p>{storeText.checkoutSuccessDescription}</p>
-          {completedOrderId ? <small>Order ID: {completedOrderId}</small> : null}
-          <button className="button button--primary" type="button" onClick={() => navigate('/')}>
-            {storeText.checkoutSuccessButtonLabel}
-          </button>
-        </div>
-      </section>
+      <>
+        <PageSeo
+          title={`${storeText.checkoutSuccessTitle} | ${siteConfig.brandName}`}
+          description={storeText.checkoutSuccessDescription}
+          noindex
+          siteName={siteConfig.brandName}
+          themeColor={siteConfig.theme.primaryColor}
+        />
+        <section className="checkout-page checkout-page--success">
+          <div className="success-card">
+            <Sparkles size={26} />
+            <h1>{storeText.checkoutSuccessTitle}</h1>
+            <p>{storeText.checkoutSuccessDescription}</p>
+            {completedOrderId ? <small>Order ID: {completedOrderId}</small> : null}
+            <button className="button button--primary" type="button" onClick={() => navigate('/')}>
+              {storeText.checkoutSuccessButtonLabel}
+            </button>
+          </div>
+        </section>
+      </>
     );
   }
 
@@ -1124,7 +1257,15 @@ export function CartPage() {
   }
 
   return (
-    <section className="checkout-page">
+    <>
+      <PageSeo
+        title={`${storeText.checkoutBasketTitle} | ${siteConfig.brandName}`}
+        description={checkoutDescription}
+        noindex
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+      />
+      <section className="checkout-page">
       <div className="checkout-page__stage">
         <div className="checkout-page__heading">
           <small>Secure checkout</small>
@@ -1146,7 +1287,15 @@ export function CartPage() {
                   <div className="checkout-cart-row__content">
                     <div className="checkout-cart-row__meta">
                       <p>{line.product.categoryLabel}</p>
-                      <span>{line.product.checkoutProvider === 'tebex' ? 'Tebex' : line.product.checkoutProvider === 'paypal' ? 'PayPal' : 'External'}</span>
+                      <span>
+                        {line.product.checkoutProvider === 'tebex'
+                          ? 'Tebex'
+                          : line.product.checkoutProvider === 'paypal'
+                            ? 'PayPal'
+                            : line.product.checkoutProvider === 'stripe'
+                              ? 'Stripe'
+                              : 'External'}
+                      </span>
                     </div>
                     <Link to={getProductHref(line.product.slug)}>{line.product.title}</Link>
                     <FrameworkBadges frameworks={line.product.frameworks} />
@@ -1304,7 +1453,8 @@ export function CartPage() {
           />
         )}
       </aside>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -1324,6 +1474,17 @@ export function LoginPage({ modal = false }: { modal?: boolean }) {
   const nextPath = searchParams.get('next')?.startsWith('/')
     ? searchParams.get('next')!
     : '/';
+  const loginSeo = (
+    <PageSeo
+      title={`${siteConfig.customerLogin.routeTitle} | ${siteConfig.brandName}`}
+      description={siteConfig.customerLogin.routeSubtitle}
+      image={siteConfig.customerLogin.brandLogoSrc || siteConfig.brandAssets.headerLogoSrc}
+      imageAlt={siteConfig.customerLogin.brandLogoAlt || siteConfig.brandName}
+      noindex
+      siteName={siteConfig.brandName}
+      themeColor={siteConfig.theme.primaryColor}
+    />
+  );
 
   useEffect(() => {
     if (!modal) {
@@ -1390,28 +1551,32 @@ export function LoginPage({ modal = false }: { modal?: boolean }) {
     if (modal) {
       return (
         <div className="login-modal" role="presentation" onClick={handleClose}>
-        <div className="login-modal__backdrop" />
-        <div
-          className="login-modal__dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-label={siteConfig.customerLogin.routeTitle}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="login-modal__shell">
-            {loadingContent}
-          </div>
+          {loginSeo}
+          <div className="login-modal__backdrop" />
+          <div
+            className="login-modal__dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={siteConfig.customerLogin.routeTitle}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="login-modal__shell">
+              {loadingContent}
+            </div>
           </div>
         </div>
       );
     }
 
     return (
-      <section className="login-page">
-        <div className="login-page__shell">
-          {loadingContent}
-        </div>
-      </section>
+      <>
+        {loginSeo}
+        <section className="login-page">
+          <div className="login-page__shell">
+            {loadingContent}
+          </div>
+        </section>
+      </>
     );
   }
 
@@ -1422,6 +1587,7 @@ export function LoginPage({ modal = false }: { modal?: boolean }) {
   if (modal) {
     return (
       <div className="login-modal" role="presentation" onClick={handleClose}>
+        {loginSeo}
         <div className="login-modal__backdrop" />
         <div
           className="login-modal__dialog"
@@ -1439,7 +1605,9 @@ export function LoginPage({ modal = false }: { modal?: boolean }) {
   }
 
   return (
-    <section className="login-page auth-callback-page">
+    <>
+      {loginSeo}
+      <section className="login-page auth-callback-page">
       <div className="login-page__shell">
         {renderPanel()}
       </div>
@@ -1453,7 +1621,8 @@ export function LoginPage({ modal = false }: { modal?: boolean }) {
         <p>{siteConfig.customerLogin.routeSubtitle}</p>
         <small>{siteConfig.customerLogin.helperText}</small>
       </article>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -1473,13 +1642,22 @@ export function AccountPage() {
 
   if (!isCustomerAuthReady) {
     return (
-      <section className="account-page">
-        <div className="account-page__shell">
-          <div className="checkout-stage__placeholder">
-            <div className="checkout-stage__loader" />
+      <>
+        <PageSeo
+          title={`Account | ${siteConfig.brandName}`}
+          description="Connected customer account."
+          noindex
+          siteName={siteConfig.brandName}
+          themeColor={siteConfig.theme.primaryColor}
+        />
+        <section className="account-page">
+          <div className="account-page__shell">
+            <div className="checkout-stage__placeholder">
+              <div className="checkout-stage__loader" />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </>
     );
   }
 
@@ -1488,9 +1666,17 @@ export function AccountPage() {
   }
 
   return (
-    <section className="account-page">
-      <div className="account-page__shell">
-        <article className="summary-card account-card">
+    <>
+      <PageSeo
+        title={`${user.name || 'Account'} | ${siteConfig.brandName}`}
+        description="Customer account, purchases and verified reviews."
+        noindex
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+      />
+      <section className="account-page">
+        <div className="account-page__shell">
+          <article className="summary-card account-card">
           <div className="account-card__hero">
             <span className="account-card__avatar">{initials}</span>
             <div className="account-card__copy">
@@ -1559,14 +1745,15 @@ export function AccountPage() {
               <span>Volver a la tienda</span>
             </Link>
           </div>
-        </article>
-      </div>
-    </section>
+          </article>
+        </div>
+      </section>
+    </>
   );
 }
 
 export function AuthCallbackPage() {
-  const { completeFiveMLogin, isCustomerAuthReady, storefrontSource, user } = useStore();
+  const { completeFiveMLogin, isCustomerAuthReady, siteConfig, storefrontSource, user } = useStore();
   const navigate = useNavigate();
   const routeLocation = useLocation();
   const [searchParams] = useSearchParams();
@@ -1657,9 +1844,17 @@ export function AuthCallbackPage() {
   ]);
 
   return (
-    <section className="login-page auth-callback-page">
-      <div className="login-page__shell auth-callback-page__shell">
-        <article className="auth-callback-card">
+    <>
+      <PageSeo
+        title={`Auth Callback | ${siteConfig.brandName}`}
+        description="Completing customer sign in."
+        noindex
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+      />
+      <section className="login-page auth-callback-page">
+        <div className="login-page__shell auth-callback-page__shell">
+          <article className="auth-callback-card">
           <div className="auth-callback-card__header">
             <span className="auth-callback-card__eyebrow">
               {provider === 'fivem' ? 'FiveM access' : 'Secure session'}
@@ -1705,9 +1900,10 @@ export function AuthCallbackPage() {
               </button>
             </div>
           )}
-        </article>
-      </div>
-    </section>
+          </article>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -1721,7 +1917,7 @@ export function CheckoutReturnPage() {
   const [message, setMessage] = useState('');
   const orderId = searchParams.get('orderId') ?? searchParams.get('order') ?? '';
   const provider = (searchParams.get('provider') ?? '').toLowerCase();
-  const providerOrderId = searchParams.get('token');
+  const providerOrderId = searchParams.get('token') ?? searchParams.get('session_id');
   const cancelState = (searchParams.get('status') ?? '').toLowerCase();
 
   useEffect(() => {
@@ -1778,7 +1974,7 @@ export function CheckoutReturnPage() {
           return;
         }
 
-        if (provider === 'tebex') {
+        if (provider === 'tebex' || provider === 'stripe') {
           const order = await waitForRemoteOrderSettlement({ orderId });
           if (!isActive) {
             return;
@@ -1787,17 +1983,31 @@ export function CheckoutReturnPage() {
           if (order?.status === 'completed') {
             clearCart();
             setStatus('success');
+            if (provider === 'stripe') {
+              setMessage('Stripe confirmó el pedido y ya quedó reflejado en la tienda.');
+              return;
+            }
             setMessage('Tebex confirmó el pedido y ya quedó reflejado en la tienda.');
             return;
           }
 
           if (order?.status === 'cancelled' || order?.status === 'failed') {
             setStatus('error');
+            if (provider === 'stripe') {
+              setMessage('Stripe devolvió un estado no válido para completar el pedido.');
+              return;
+            }
             setMessage('Tebex devolvió un estado no válido para completar el pedido.');
             return;
           }
 
           setStatus('pending');
+          if (provider === 'stripe') {
+            setMessage(
+              'Stripe devolvió al cliente, pero la confirmación final todavía no ha llegado. Revisa el estado en unos segundos o en el panel.',
+            );
+            return;
+          }
           setMessage(
             'El pedido volvió desde Tebex, pero la confirmación final todavía no ha llegado. Revisa el estado en unos segundos o en el panel.',
           );
@@ -1852,30 +2062,39 @@ export function CheckoutReturnPage() {
       'Estamos consultando el estado real del pedido con el proveedor de pago.';
 
   return (
-    <section className="checkout-page checkout-page--success">
-      <div className="success-card">
-        {status === 'loading' ? <div className="checkout-stage__loader" /> : <Sparkles size={26} />}
-        <h1>{title}</h1>
-        <p>{description}</p>
-        {orderId ? <small>Order ID: {orderId}</small> : null}
-        <div className="checkout-summary__actions">
-          <button className="button button--primary" type="button" onClick={() => navigate('/')}>
-            {status === 'success'
-              ? siteConfig.storeText.checkoutSuccessButtonLabel
-              : siteConfig.storeText.checkoutContinueShoppingLabel}
-          </button>
-          {status === 'pending' || status === 'error' ? (
-            <button
-              className="checkout-summary__secondary"
-              type="button"
-              onClick={() => window.location.reload()}
-            >
-              Reintentar estado
+    <>
+      <PageSeo
+        title={`${title} | ${siteConfig.brandName}`}
+        description={description}
+        noindex
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+      />
+      <section className="checkout-page checkout-page--success">
+        <div className="success-card">
+          {status === 'loading' ? <div className="checkout-stage__loader" /> : <Sparkles size={26} />}
+          <h1>{title}</h1>
+          <p>{description}</p>
+          {orderId ? <small>Order ID: {orderId}</small> : null}
+          <div className="checkout-summary__actions">
+            <button className="button button--primary" type="button" onClick={() => navigate('/')}>
+              {status === 'success'
+                ? siteConfig.storeText.checkoutSuccessButtonLabel
+                : siteConfig.storeText.checkoutContinueShoppingLabel}
             </button>
-          ) : null}
+            {status === 'pending' || status === 'error' ? (
+              <button
+                className="checkout-summary__secondary"
+                type="button"
+                onClick={() => window.location.reload()}
+              >
+                Reintentar estado
+              </button>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -1897,20 +2116,37 @@ function renderLinkedParagraph(paragraph: string) {
 
 export function TermsPage() {
   const { siteConfig } = useStore();
+  const termsDescription = `Terms, refunds and legal information for ${siteConfig.brandName}.`;
 
   return (
-    <section className="terms-page">
-      <main className="terms-content">
-        <h1>{siteConfig.terms.title}</h1>
-        <div className="terms-content__body">
-          {siteConfig.terms.paragraphs.map((paragraph, index) => (
-            <p key={`${index}-${paragraph.slice(0, 24)}`} style={{ whiteSpace: 'pre-line' }}>
-              {renderLinkedParagraph(paragraph)}
-            </p>
-          ))}
-        </div>
-      </main>
-    </section>
+    <>
+      <PageSeo
+        title={`${siteConfig.terms.title} | ${siteConfig.brandName}`}
+        description={termsDescription}
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+        keywords={[siteConfig.brandName, 'terms', 'refund policy', 'conditions']}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: siteConfig.terms.title,
+          description: termsDescription,
+          url: buildAbsoluteUrl('/terms-conditions-and-refund-policy'),
+        }}
+      />
+      <section className="terms-page">
+        <main className="terms-content">
+          <h1>{siteConfig.terms.title}</h1>
+          <div className="terms-content__body">
+            {siteConfig.terms.paragraphs.map((paragraph, index) => (
+              <p key={`${index}-${paragraph.slice(0, 24)}`} style={{ whiteSpace: 'pre-line' }}>
+                {renderLinkedParagraph(paragraph)}
+              </p>
+            ))}
+          </div>
+        </main>
+      </section>
+    </>
   );
 }
 
@@ -1918,15 +2154,24 @@ export function NotFoundPage() {
   const { siteConfig } = useStore();
 
   return (
-    <section className="not-found-page">
-      <div className="empty-state empty-state--large">
-        <ShieldCheck size={22} />
-        <p>404</p>
-        <span>The page you are attempting to view could not be found.</span>
-        <Link className="button button--primary" to="/">
-          {siteConfig.storeText.notFoundButtonLabel}
-        </Link>
-      </div>
-    </section>
+    <>
+      <PageSeo
+        title={`Page Not Found | ${siteConfig.brandName}`}
+        description="Requested page not found."
+        noindex
+        siteName={siteConfig.brandName}
+        themeColor={siteConfig.theme.primaryColor}
+      />
+      <section className="not-found-page">
+        <div className="empty-state empty-state--large">
+          <ShieldCheck size={22} />
+          <p>404</p>
+          <span>The page you are attempting to view could not be found.</span>
+          <Link className="button button--primary" to="/">
+            {siteConfig.storeText.notFoundButtonLabel}
+          </Link>
+        </div>
+      </section>
+    </>
   );
 }

@@ -75,7 +75,10 @@ async function extractFunctionErrorMessage(error: unknown, fallback: string) {
 }
 
 function normalizeCheckoutFunctionError(provider: ProductCheckoutProvider, message: string) {
-  if (/Necesitas iniciar sesi.+FiveM/i.test(message) || /identity/i.test(message) && /required/i.test(message)) {
+  if (
+    /Necesitas iniciar sesi.+FiveM/i.test(message) ||
+    (/identity/i.test(message) && /required/i.test(message))
+  ) {
     return 'Este checkout requiere que inicies sesión con FiveM antes de pagar este producto.';
   }
 
@@ -84,10 +87,13 @@ function normalizeCheckoutFunctionError(provider: ProductCheckoutProvider, messa
   }
 
   if (/SITE_URL|complete_url|cancel_url|return/i.test(message)) {
-    return 'La configuración de retorno de Tebex no es válida. Revisa SITE_URL y las rutas de vuelta del checkout.';
+    return 'La configuración de retorno del checkout no es válida. Revisa SITE_URL y las rutas de vuelta del proveedor.';
   }
 
-  if (/Could not create the Tebex basket/i.test(message) || /basket/i.test(message) && /tebex/i.test(message)) {
+  if (
+    /Could not create the Tebex basket/i.test(message) ||
+    (/basket/i.test(message) && /tebex/i.test(message))
+  ) {
     return 'Tebex no pudo preparar el basket del checkout. Revisa la configuración Headless y prueba de nuevo.';
   }
 
@@ -95,10 +101,20 @@ function normalizeCheckoutFunctionError(provider: ProductCheckoutProvider, messa
     return 'Tebex no devolvió la URL final del checkout. Revisa la configuración del webstore.';
   }
 
+  if (/stripe/i.test(message) && /credential|secret|api key/i.test(message)) {
+    return 'Stripe no está configurado correctamente. Revisa STRIPE_SECRET_KEY y vuelve a desplegar las Edge Functions.';
+  }
+
+  if (/checkout session/i.test(message) || (/stripe/i.test(message) && /checkout/i.test(message))) {
+    return 'Stripe no pudo preparar la sesión de checkout. Revisa la configuración del proveedor y prueba de nuevo.';
+  }
+
   if (/non-2xx status code/i.test(message)) {
     return provider === 'paypal'
       ? 'PayPal devolvió un error al preparar el pago.'
-      : 'La función de Tebex devolvió un error al preparar el checkout.';
+      : provider === 'stripe'
+        ? 'Stripe devolvió un error al preparar el checkout.'
+        : 'La función de Tebex devolvió un error al preparar el checkout.';
   }
 
   return message;
@@ -151,7 +167,11 @@ export async function startRemoteCheckout(args: {
   }
 
   const functionName =
-    provider === 'paypal' ? 'paypal-order-create' : 'tebex-basket-create';
+    provider === 'paypal'
+      ? 'paypal-order-create'
+      : provider === 'stripe'
+        ? 'stripe-checkout-create'
+        : 'tebex-basket-create';
 
   const { data, error } = await client.functions.invoke(functionName, {
     body: getCheckoutPayload(args),
@@ -162,7 +182,9 @@ export async function startRemoteCheckout(args: {
       error,
       provider === 'paypal'
         ? 'No se pudo iniciar el checkout de PayPal.'
-        : 'No se pudo iniciar el checkout de Tebex.',
+        : provider === 'stripe'
+          ? 'No se pudo iniciar el checkout de Stripe.'
+          : 'No se pudo iniciar el checkout de Tebex.',
     );
     throw new Error(normalizeCheckoutFunctionError(provider, message));
   }
